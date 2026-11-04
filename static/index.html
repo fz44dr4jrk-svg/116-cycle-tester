@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>L16 Cycle Tester</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="title-block">
+    <h1>L16 Cycle Tester</h1>
+    <div class="subtitle">Actuonics L16-50-35-6-R &middot; PhidgetAdvancedServo 8-Motor RCC0004_0</div>
+  </div>
+  <div class="header-right">
+    <div id="device-pill" class="pill">connecting&hellip;</div>
+    <div class="voltage-group" id="voltage-group">
+      <span class="vg-label">Servo voltage</span>
+      <button type="button" class="volt-btn" data-v="5.0">5.0 V</button>
+      <button type="button" class="volt-btn" data-v="6.0">6.0 V</button>
+      <button type="button" class="volt-btn" data-v="7.4">7.4 V</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel settings-panel">
+    <h2>Settings</h2>
+    <div class="slider-row">
+      <label for="speed">Speed <output id="speed-out"></output></label>
+      <input type="range" id="speed" min="1" max="100" step="1" value="50">
+    </div>
+    <div class="slider-row">
+      <label for="dwell">Pause between cycles <output id="dwell-out"></output></label>
+      <input type="range" id="dwell" min="0" max="60" step="0.5" value="2">
+    </div>
+    <div class="slider-row">
+      <label for="min">Extent min <output id="min-out"></output></label>
+      <input type="range" id="min" min="0" max="49" step="1" value="0">
+    </div>
+    <div class="slider-row">
+      <label for="max">Extent max <output id="max-out"></output></label>
+      <input type="range" id="max" min="1" max="50" step="1" value="50">
+    </div>
+    <div class="slider-row">
+      <label for="cycles">Number of cycles <output id="cycles-out"></output></label>
+      <input type="range" id="cycles" min="0" max="78" step="1" value="0">
+    </div>
+    <div id="settings-hint" class="hint">Settings apply when the tester is stopped.</div>
+  </section>
+
+  <section class="panel monitor-panel">
+    <h2>Monitor</h2>
+    <div class="status-row">
+      <div id="status-pill" class="pill">IDLE</div>
+      <div id="error-box" class="error" hidden></div>
+    </div>
+    <div class="counter">
+      <div class="counter-label">Cycle count</div>
+      <div class="counter-value"><span id="count">0</span><span class="counter-target"> / <span id="target">10,000</span></span></div>
+      <div class="progress"><div id="progress-bar"></div></div>
+    </div>
+    <div class="gauge-row">
+      <svg id="gauge" viewBox="0 0 150 480" preserveAspectRatio="xMidYMid meet" aria-label="movement extent gauge"></svg>
+      <div class="gauge-side">
+        <div class="pos-label">Extent</div>
+        <div class="pos-value"><span id="pos">0</span><span class="unit"> mm</span></div>
+        <div class="range-label">Range<br><span id="range-out">0 &ndash; 50 mm</span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="controls">
+  <button type="button" id="btn-start" class="btn start">START</button>
+  <button type="button" id="btn-stop" class="btn stop" disabled>STOP</button>
+  <button type="button" id="btn-reset" class="btn reset">RESET COUNTER</button>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
