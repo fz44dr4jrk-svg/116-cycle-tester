@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Build single-file EXE
-        run: python -m PyInstaller --clean --nologo --onefile --noconsole --name L16CycleTester server.py --add-data "static;static" --collect-all Phidget22
+        run: python -m PyInstaller --clean --onefile --noconsole --name L16CycleTester server.py --add-data "static;static" --collect-all Phidget22
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
