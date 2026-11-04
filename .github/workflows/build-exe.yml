@@ -10,8 +10,8 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Install dependencies
@@ -19,7 +19,7 @@ jobs:
       - name: Build single-file EXE
         run: python -m PyInstaller --clean --onefile --noconsole --name L16CycleTester server.py --add-data "static;static" --collect-all Phidget22
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: L16CycleTester-windows
           path: dist/L16CycleTester.exe
