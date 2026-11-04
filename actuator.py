@@ -118,13 +118,24 @@ class PhidgetActuator(ActuatorBase):
         self._lock = threading.Lock()
 
     def open(self):
+        self.error = None
         try:
-            from Phidget22.Devices.AdvancedServo import AdvancedServo as ServoCls
-        except ImportError:
-            from Phidget22.Devices.RCServo import RCServo as ServoCls
-        dev = ServoCls()
-        dev.setChannel(self.channel)
-        dev.openWaitForAttachment(self.attach_timeout_ms)
+            try:
+                from Phidget22.Devices.AdvancedServo import AdvancedServo as ServoCls
+            except ImportError:
+                from Phidget22.Devices.RCServo import RCServo as ServoCls
+            dev = ServoCls()
+            dev.setChannel(self.channel)
+            dev.openWaitForAttachment(self.attach_timeout_ms)
+        except Exception as exc:
+            self.connected = False
+            self.error = (
+                f"RCC0004 not usable on USB channel {self.channel} "
+                f"({type(exc).__name__}: {exc}). Check: USB cable, external 8-30V supply "
+                "on the board (correct polarity), Windows driver (Phidget22 drivers or "
+                "WinUSB via Zadig). Details in l16-cycle-tester.log."
+            )
+            raise RuntimeError(self.error) from exc
         self._dev = dev
         dev.setEngaged(True)
         try:

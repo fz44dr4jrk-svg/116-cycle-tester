@@ -5,7 +5,7 @@ if errorlevel 1 (
   exit /b 1
 )
 py -m pip install -r requirements.txt
-py -m PyInstaller --clean --onefile --noconsole --name L16CycleTester server.py --add-data "static;static" --collect-all Phidget22
+py build_exe.py
 if errorlevel 1 exit /b 1
 echo.
 echo Built dist\L16CycleTester.exe

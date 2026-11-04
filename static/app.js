@@ -149,6 +149,7 @@ function render() {
     dev.textContent = "CONTROLLER NOT CONNECTED";
     dev.className = "pill bad";
   }
+  $("btn-reconnect").hidden = s.demo || s.device.connected;
 
   const statusPill = $("status-pill");
   statusPill.textContent = s.status.toUpperCase();
@@ -216,6 +217,10 @@ $("btn-stop").addEventListener("click", async () => {
 });
 $("btn-reset").addEventListener("click", async () => {
   const r = await api("/api/reset", {});
+  if (!r.ok) showError(r.error);
+});
+$("btn-reconnect").addEventListener("click", async () => {
+  const r = await api("/api/reconnect", {});
   if (!r.ok) showError(r.error);
 });
 

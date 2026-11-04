@@ -2,7 +2,9 @@ import argparse
 import json
 import sys
 import threading
+import time
 import webbrowser
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -26,6 +28,17 @@ APP_DIR = (
     else Path(__file__).resolve().parent
 )
 SETTINGS_FILE = APP_DIR / "settings.json"
+LOG_FILE = APP_DIR / "l16-cycle-tester.log"
+
+
+def log(message):
+    line = f"{datetime.now().isoformat(timespec='seconds')} {message}"
+    print(line, flush=True)
+    try:
+        with LOG_FILE.open("a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+    except Exception:
+        pass
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -64,6 +77,24 @@ class App:
             )
         except Exception:
             pass
+
+    def reconnect(self):
+        if self.demo:
+            raise RuntimeError("demo mode uses the simulated actuator")
+        if self.actuator.connected:
+            return True
+        log("reconnect: trying to open Phidget controller...")
+        try:
+            self.actuator.open()
+        except Exception as exc:
+            log(f"reconnect failed: {exc}")
+            raise
+        log(f"reconnect OK: {self.actuator.name}")
+        try:
+            self.engine.apply_config()
+        except Exception as exc:
+            log(f"apply_config after reconnect failed: {exc}")
+        return True
 
     def state(self):
         snap = self.engine.snapshot()
@@ -150,6 +181,9 @@ def make_handler(app):
                 elif path == "/api/reset":
                     app.engine.reset()
                     self._json(200, {"ok": True, "state": app.state()})
+                elif path == "/api/reconnect":
+                    app.reconnect()
+                    self._json(200, {"ok": True, "state": app.state()})
                 else:
                     self._json(404, {"ok": False, "error": "not found"})
             except Exception as exc:
@@ -170,21 +204,33 @@ def main():
     actuator = make_actuator(args.demo, channel=args.channel)
     try:
         actuator.open()
+        log(f"controller opened: {actuator.name}")
     except Exception as exc:
         actuator.connected = False
-        actuator.error = f"{type(exc).__name__}: {exc}"
-        print(
-            f"[warn] could not open Phidget controller: {actuator.error}",
-            file=sys.stderr,
-        )
+        if actuator.error is None:
+            actuator.error = f"{type(exc).__name__}: {exc}"
+        log(f"could not open Phidget controller: {actuator.error}")
 
     app = App(actuator, args.demo)
+    stop_watcher = threading.Event()
+
+    def watch_controller():
+        while not stop_watcher.is_set():
+            if not args.demo and not actuator.connected:
+                try:
+                    app.reconnect()
+                except Exception:
+                    pass
+            stop_watcher.wait(5.0)
+
+    watcher = threading.Thread(target=watch_controller, daemon=True)
+    watcher.start()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
     server.daemon_threads = True
     url = f"http://{args.host}:{args.port}/"
-    print(
-        f"L16 cycle tester dashboard at {url} "
-        f"(demo={args.demo}, device={actuator.name}, connected={actuator.connected})"
+    log(
+        f"dashboard at {url} (demo={args.demo}, device={actuator.name}, "
+        f"connected={actuator.connected}) - log file: {LOG_FILE}"
     )
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
@@ -193,6 +239,7 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        stop_watcher.set()
         app.engine.shutdown()
         actuator.close()
         server.server_close()

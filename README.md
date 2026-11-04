@@ -52,6 +52,26 @@ failure cannot damage the test parts.
    `http://127.0.0.1:8080` and opens the dashboard in the default browser.
    No installation, no internet needed.
 
+   **Yes, the browser showing `127.0.0.1:8080` is correct.** That is the loopback
+   address — the app serves the dashboard only to the tablet itself. Nothing is
+   sent over the network; the tablet does not need internet access.
+
+### "Controller not connected" on the tablet
+
+The dashboard shows this when the RCC0004 is not detected over USB. The app
+retries automatically every 5 s and there is a **RECONNECT CONTROLLER** button in
+the header. Check, in this order:
+
+1. USB cable between the RCC0004 and the tablet (try another cable/port).
+2. The RCC0004 needs its **external 8–30 V DC supply** connected (barrel jack or
+   terminal block, correct polarity) — without it the board can misbehave.
+3. Windows driver: on Windows 10 the RCC0004 normally uses WinUSB automatically.
+   If not, install the Phidget22 drivers (phidgets.com → docs → OS - Windows) or
+   use Zadig to bind WinUSB to the Phidget device.
+4. Read the exact error: the app writes `l16-cycle-tester.log` next to the EXE
+   (same folder the EXE was started from) and shows the error text in the
+   dashboard. Copy that log file back via USB if you need help interpreting it.
+
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
