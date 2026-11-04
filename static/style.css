@@ -26,7 +26,8 @@ html, body {
 body {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 header {
@@ -88,6 +89,8 @@ h1 { font-size: 26px; margin: 0; }
 
 main {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: grid;
   grid-template-columns: minmax(340px, 1fr) minmax(340px, 1fr);
   gap: 16px;
@@ -179,7 +182,7 @@ input[type="range"]::-moz-range-thumb {
 
 .counter { margin-bottom: 18px; }
 .counter-label { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
-.counter-value { font-size: 54px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.counter-value { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .counter-target { color: var(--muted); font-size: 26px; font-weight: 600; }
 
 .progress {
@@ -193,29 +196,27 @@ input[type="range"]::-moz-range-thumb {
 #progress-bar { height: 100%; width: 0%; background: var(--accent); transition: width 0.2s linear; }
 
 .gauge-row { display: flex; gap: 18px; align-items: center; }
-#gauge { width: 150px; height: 480px; max-height: 56vh; flex: 0 0 auto; }
+#gauge { width: 150px; height: 480px; max-height: 46vh; flex: 0 0 auto; }
 
 .gauge-side { display: flex; flex-direction: column; gap: 10px; }
 .pos-label, .range-label { color: var(--muted); font-size: 14px; text-transform: uppercase; letter-spacing: 0.08em; }
-.pos-value { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.pos-value { font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .pos-value .unit { font-size: 20px; color: var(--muted); font-weight: 600; }
 #range-out { color: var(--text); font-size: 18px; font-weight: 700; text-transform: none; letter-spacing: 0; }
 
 .controls {
+  flex: 0 0 auto;
   display: flex;
   gap: 16px;
-  padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
   background: var(--panel);
   border-top: 1px solid var(--panel-edge);
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
 }
 
 .btn {
   flex: 1;
-  min-height: 72px;
-  font-size: 24px;
+  min-height: 60px;
+  font-size: 21px;
   font-weight: 800;
   letter-spacing: 0.04em;
   border-radius: 14px;
