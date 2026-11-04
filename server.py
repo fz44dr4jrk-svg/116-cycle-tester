@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 import threading
 import time
@@ -51,11 +52,33 @@ MIME = {
 }
 
 
+def acquire_single_instance():
+    if os.name == "nt":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.CreateMutexW(None, True, "Global\\L16CycleTesterSingleInstance")
+        if kernel32.GetLastError() == 183:
+            kernel32.CloseHandle(handle)
+            return None
+        return handle
+    import fcntl
+
+    fh = (APP_DIR / ".l16-cycle-tester.lock").open("w")
+    try:
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return fh
+    except OSError:
+        fh.close()
+        return None
+
+
 class App:
     def __init__(self, actuator, demo):
         self.actuator = actuator
         self.demo = demo
         self.engine = CycleEngine(actuator)
+        self._reconnect_lock = threading.Lock()
         self.load_settings()
         try:
             self.engine.apply_config()
@@ -83,18 +106,23 @@ class App:
             raise RuntimeError("demo mode uses the simulated actuator")
         if self.actuator.connected:
             return True
-        log("reconnect: trying to open Phidget controller...")
+        if not self._reconnect_lock.acquire(blocking=False):
+            return False
         try:
-            self.actuator.open()
-        except Exception as exc:
-            log(f"reconnect failed: {exc}")
-            raise
-        log(f"reconnect OK: {self.actuator.name}")
-        try:
-            self.engine.apply_config()
-        except Exception as exc:
-            log(f"apply_config after reconnect failed: {exc}")
-        return True
+            log("reconnect: trying to open Phidget controller...")
+            try:
+                self.actuator.open()
+            except Exception as exc:
+                log(f"reconnect failed: {exc}")
+                raise
+            log(f"reconnect OK: {self.actuator.name}")
+            try:
+                self.engine.apply_config()
+            except Exception as exc:
+                log(f"apply_config after reconnect failed: {exc}")
+            return True
+        finally:
+            self._reconnect_lock.release()
 
     def state(self):
         snap = self.engine.snapshot()
@@ -200,6 +228,22 @@ def main():
     parser.add_argument("--channel", type=int, default=0, help="RCC0004 servo channel (0-7)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser window")
     args = parser.parse_args()
+
+    lock = acquire_single_instance()
+    if lock is None:
+        msg = (
+            "L16CycleTester is already running. A Phidget controller can only be opened "
+            "by one program at a time - close the other L16CycleTester instance (or the "
+            "Phidget Control Panel) and start again."
+        )
+        log(msg)
+        if os.name == "nt":
+            import ctypes
+
+            ctypes.windll.user32.MessageBoxW(None, msg, "L16 Cycle Tester", 0x30)
+        else:
+            print(msg, file=sys.stderr)
+        return
 
     actuator = make_actuator(args.demo, channel=args.channel)
     try:

@@ -129,11 +129,17 @@ class PhidgetActuator(ActuatorBase):
             dev.openWaitForAttachment(self.attach_timeout_ms)
         except Exception as exc:
             self.connected = False
+            detail = f"{type(exc).__name__}: {exc}"
+            if "in use by" in str(exc):
+                detail += (
+                    " | The controller is already open in ANOTHER program - typically a"
+                    " second running copy of L16CycleTester or the Phidget Control Panel."
+                    " Close that program, then press RECONNECT here."
+                )
             self.error = (
-                f"RCC0004 not usable on USB channel {self.channel} "
-                f"({type(exc).__name__}: {exc}). Check: USB cable, external 8-30V supply "
-                "on the board (correct polarity), Windows driver (Phidget22 drivers or "
-                "WinUSB via Zadig). Details in l16-cycle-tester.log."
+                f"RCC0004 not usable on USB channel {self.channel} ({detail}). "
+                "Otherwise check: USB cable, external 8-30V supply on the board "
+                "(correct polarity), Windows driver. Details in l16-cycle-tester.log."
             )
             raise RuntimeError(self.error) from exc
         self._dev = dev

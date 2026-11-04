@@ -60,7 +60,13 @@ failure cannot damage the test parts.
 
 The dashboard shows this when the RCC0004 is not detected over USB. The app
 retries automatically every 5 s and there is a **RECONNECT CONTROLLER** button in
-the header. Check, in this order:
+the header. **Only one instance of L16CycleTester may run at a time** — a Phidget
+controller can be opened by a single program only. If the error says
+`open failed because device is in use by ... pid ...`, another copy of the app
+(or the Phidget Control Panel) holds the controller: close it in Task Manager,
+then press RECONNECT. The app now also refuses to start a second instance.
+
+Then check, in this order:
 
 1. USB cable between the RCC0004 and the tablet (try another cable/port).
 2. The RCC0004 needs its **external 8–30 V DC supply** connected (barrel jack or
