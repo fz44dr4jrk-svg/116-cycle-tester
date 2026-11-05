@@ -62,6 +62,18 @@ h1 { font-size: 26px; margin: 0; }
   cursor: pointer;
 }
 
+.quit-btn {
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+  border: 2px solid var(--bad);
+  background: rgba(248, 113, 113, 0.12);
+  color: var(--bad);
+  cursor: pointer;
+}
+
 .pill {
   display: inline-block;
   padding: 6px 14px;

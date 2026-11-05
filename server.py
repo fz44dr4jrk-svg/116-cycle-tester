@@ -88,6 +88,7 @@ class App:
         self.demo = demo
         self.engine = CycleEngine(actuator)
         self._reconnect_lock = threading.Lock()
+        self.server = None
         self.load_settings()
         try:
             self.engine.apply_config()
@@ -222,6 +223,27 @@ def make_handler(app):
                 elif path == "/api/reconnect":
                     app.reconnect()
                     self._json(200, {"ok": True, "state": app.state()})
+                elif path == "/api/quit":
+                    self._json(200, {"ok": True, "state": app.state()})
+
+                    def quit_app():
+                        time.sleep(0.5)
+                        log("quit requested: shutting down")
+                        try:
+                            app.engine.shutdown()
+                        except Exception:
+                            pass
+                        try:
+                            app.actuator.close()
+                        except Exception:
+                            pass
+                        try:
+                            app.server.shutdown()
+                        except Exception:
+                            pass
+                        os._exit(0)
+
+                    threading.Thread(target=quit_app, daemon=True).start()
                 else:
                     self._json(404, {"ok": False, "error": "not found"})
             except Exception as exc:
@@ -284,6 +306,7 @@ def main():
     watcher.start()
     server = ThreadingHTTPServer((args.host, args.port), make_handler(app))
     server.daemon_threads = True
+    app.server = server
     url = f"http://{args.host}:{args.port}/"
     log(
         f"dashboard at {url} (demo={args.demo}, device={actuator.name}, "

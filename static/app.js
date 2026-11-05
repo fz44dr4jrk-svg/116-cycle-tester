@@ -155,6 +155,11 @@ function wireControls() {
     const r = await api("/api/reconnect", {});
     if (!r.ok) showError(r.error);
   });
+  $("btn-quit").addEventListener("click", async () => {
+    showError(null);
+    document.body.innerHTML = "<div style='padding:40px;font-size:24px'>L16 Cycle Tester closed. The controller has been released — you can now close this tab or start MAX.</div>";
+    await api("/api/quit", {}).catch(() => {});
+  });
 }
 
 function yForMm(mm) {

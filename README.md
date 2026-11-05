@@ -89,6 +89,15 @@ Note: in Task Manager a one-file EXE shows **two** processes with the same name 
 a small bootloader parent and the unpacked child. That is normal, it is still a
 single instance (one browser window).
 
+### Closing the app
+
+Closing the browser tab does **not** stop the program — the EXE keeps running and
+keeps holding the RCC0004. To close it cleanly, press **QUIT APP** in the
+dashboard header: it stops any running cycle, releases the controller, and exits
+the EXE (both Task Manager entries disappear). If it ever stays alive, end both
+`L16CycleTester` processes in Task Manager — that also releases the controller so
+MAX / the Phidget Control Panel can use it again.
+
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
