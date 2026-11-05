@@ -63,8 +63,12 @@ retries automatically every 5 s and there is a **RECONNECT CONTROLLER** button i
 the header. **Only one instance of L16CycleTester may run at a time** — a Phidget
 controller can be opened by a single program only. If the error says
 `open failed because device is in use by ... pid ...`, another copy of the app
-(or the Phidget Control Panel) holds the controller: close it in Task Manager,
-then press RECONNECT. The app now also refuses to start a second instance.
+(or the Phidget Control Panel, or MAX) holds the controller: close it in Task
+Manager, then press RECONNECT. The app now also refuses to start a second
+instance. Note: every instance opens the same address `127.0.0.1:8080`, so if
+several browser tabs are open you may be looking at the instance that does NOT
+own the controller — close extra tabs and use the tab of the single running
+instance (its header pill shows `Connected: ... serial ...`).
 
 Then check, in this order:
 
