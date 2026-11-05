@@ -171,6 +171,7 @@ class App:
             "name": lc.name,
             "kg": kg_now,
             "peak_kg": round(max(snap.get("run_peak_kg", 0.0), hist_peak, kg_now or 0.0), 3),
+            "prev_cycle_peak_kg": snap.get("prev_cycle_peak_kg"),
             "history": hist,
         }
         snap["run_file"] = self.recorder.file_name if self.recorder is not None and self.recorder.active else None

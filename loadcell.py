@@ -5,8 +5,8 @@ from collections import deque
 
 READ_CMD = b"!001:SYS?\r"
 BAUD = 115200
-POLL_HZ = 20.0
-HIST_MAX = 36000
+POLL_HZ = 50.0
+HIST_MAX = 90000
 WINDOW_MAX_S = 1800.0
 POINTS_MAX = 1200
 
@@ -186,8 +186,12 @@ class DscUsbLoadCell(LoadCellBase):
 def _decimate(items, max_points):
     max_points = max(2, min(int(max_points), POINTS_MAX))
     if len(items) > max_points:
-        step = -(-len(items) // max_points)
-        picked = items[::step]
+        n = len(items)
+        bucket = -(-n // max_points)
+        picked = []
+        for i in range(0, n, bucket):
+            chunk = items[i : i + bucket]
+            picked.append(max(chunk, key=lambda p: p[1]))
         if picked and picked[-1] is not items[-1]:
             picked.append(items[-1])
         items = picked

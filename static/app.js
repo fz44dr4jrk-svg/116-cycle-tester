@@ -387,6 +387,7 @@ function render() {
     loadPill.className = "pill bad";
   }
   $("load-kg").textContent = load.kg !== null ? load.kg.toFixed(3) : "--";
+  $("load-prev-peak").textContent = load.prev_cycle_peak_kg != null ? load.prev_cycle_peak_kg.toFixed(3) : "–";
   $("btn-tare").disabled = !load.connected;
   drawChart(load.history || [], c.mode === "2b" ? c.load_goal_kg : null);
   $("run-file").textContent = s.run_file ? "Logging to " + s.run_file : "";
@@ -470,13 +471,27 @@ function drawChart(history, goalKg) {
     ctx.fillText("goal " + goalKg.toFixed(1) + " kg", padL + 4, gy - 4);
   }
   const n = history.length;
-  const bw = Math.max(1, plotW / n - 1);
-  ctx.fillStyle = "#38bdf8";
-  for (let i = 0; i < n; i++) {
-    const [t, v] = history[i];
-    const x = padL + ((t - t0) / span) * plotW;
-    const h = (Math.max(v, 0) / maxV) * plotH;
-    ctx.fillRect(x, padT + plotH - h, bw, h);
+  if (n > 300) {
+    ctx.strokeStyle = "#38bdf8";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const [t, v] = history[i];
+      const x = padL + ((t - t0) / span) * plotW;
+      const y = padT + plotH - (Math.max(v, 0) / maxV) * plotH;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  } else {
+    const bw = Math.max(1, plotW / n - 1);
+    ctx.fillStyle = "#38bdf8";
+    for (let i = 0; i < n; i++) {
+      const [t, v] = history[i];
+      const x = padL + ((t - t0) / span) * plotW;
+      const h = (Math.max(v, 0) / maxV) * plotH;
+      ctx.fillRect(x, padT + plotH - h, bw, h);
+    }
   }
 }
 

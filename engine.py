@@ -65,6 +65,7 @@ class CycleEngine:
                 "position_mm": self.actuator.position_mm,
                 "voltage": self.actuator.get_voltage(),
                 "run_peak_kg": self._run_peak,
+                "prev_cycle_peak_kg": self._prev_peak,
             }
 
     def set_config(self, cfg):
@@ -230,14 +231,18 @@ class CycleEngine:
             and not self._stop_evt.is_set()
             and not self._fail_evt.is_set()
         ):
-            pos = min(cap, pos + 1.0)
-            self.actuator.move_to_mm(pos, timeout_s=30, cancel_evt=self._stop_evt)
             load = self._load()
             if load is not None:
                 if load > self._cycle_peak:
                     self._cycle_peak = load
                 if load >= target_load:
                     break
+                remaining = target_load - load
+                step = 1.0 if remaining > 0.5 else (0.5 if remaining > 0.2 else 0.1)
+            else:
+                step = 1.0
+            pos = min(cap, pos + step)
+            self.actuator.move_to_mm(pos, timeout_s=30, cancel_evt=self._stop_evt)
         return pos
 
     def _run(self):
