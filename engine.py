@@ -230,10 +230,7 @@ class CycleEngine:
                 and prev > PEAK_EPS_KG
                 and peak < (1.0 - drop) * prev
             ):
-                actuator_moved = (
-                    self._prev_maxpos is None
-                    or self._cycle_maxpos >= self._prev_maxpos - 2.0
-                )
+                actuator_moved = (self._cycle_maxpos - cfg["min_mm"]) > 1.0
                 if actuator_moved:
                     self._failure_type = "part_break"
                     self._fail_reason = (
