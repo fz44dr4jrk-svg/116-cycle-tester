@@ -55,6 +55,7 @@ class CycleEngine:
         self._run_peak = 0.0
         self._logged_peak = None
         self._extent = None
+        self._goal_reached = False
 
     def snapshot(self):
         with self._lock:
@@ -147,6 +148,7 @@ class CycleEngine:
             self._run_peak = 0.0
             self._logged_peak = None
             self._extent = None
+            self._goal_reached = False
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -213,18 +215,25 @@ class CycleEngine:
 
     def _check_cycle_peak(self):
         cfg = self._cfg()
-        if cfg["mode"] == "1":
-            return
-        drop = cfg["fail_drop_pct"] / 100.0
         peak = self._cycle_peak
         prev = self._prev_peak
-        if prev is not None and prev > PEAK_EPS_KG and peak < (1.0 - drop) * prev:
-            self._fail_reason = (
-                f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
-                f"cycle peak: {peak:.3f} kg vs {prev:.3f} kg"
-            )
-            self._fail_evt.set()
-            self._fail_prev_peak = prev
+        if cfg["mode"] == "2b" and peak >= cfg["load_goal_kg"]:
+            self._goal_reached = True
+        if cfg["mode"] != "1":
+            check_failure = not (cfg["mode"] == "2b" and not self._goal_reached)
+            drop = cfg["fail_drop_pct"] / 100.0
+            if (
+                check_failure
+                and prev is not None
+                and prev > PEAK_EPS_KG
+                and peak < (1.0 - drop) * prev
+            ):
+                self._fail_reason = (
+                    f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
+                    f"cycle peak: {peak:.3f} kg vs {prev:.3f} kg"
+                )
+                self._fail_evt.set()
+                self._fail_prev_peak = prev
         self._prev_peak = peak
 
     def _sleep(self, seconds):
@@ -281,6 +290,11 @@ class CycleEngine:
                 and not self._fail_evt.is_set()
             ):
                 self._cycle_peak = 0.0
+                if self.loadcell is not None:
+                    try:
+                        self.loadcell.reset_peak()
+                    except Exception:
+                        pass
                 if can_move:
                     if cfg["mode"] == "2b":
                         if self._extent is None:
@@ -297,6 +311,13 @@ class CycleEngine:
                             self._cycle_peak = load
                 if self._stop_evt.is_set() or self._fail_evt.is_set():
                     break
+                if self.loadcell is not None:
+                    try:
+                        mp = self.loadcell.module_peak_kg()
+                        if mp is not None and mp > self._cycle_peak:
+                            self._cycle_peak = mp
+                    except Exception:
+                        pass
                 self._check_cycle_peak()
                 if self._fail_evt.is_set():
                     break
