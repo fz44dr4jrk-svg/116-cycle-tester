@@ -28,9 +28,6 @@ class ActuatorBase:
     def get_voltage(self):
         raise NotImplementedError
 
-    def set_speed_pct(self, pct):
-        raise NotImplementedError
-
     def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         raise NotImplementedError
 
@@ -46,7 +43,7 @@ class SimulatedActuator(ActuatorBase):
         self._lock = threading.Lock()
         self._pos = 0.0
         self._target = 0.0
-        self._speed_pct = 50.0
+        self._speed_pct = 100.0
         self._voltage = 6.0
         self._stop = threading.Event()
         self._thread = None
@@ -87,10 +84,6 @@ class SimulatedActuator(ActuatorBase):
     def get_voltage(self):
         with self._lock:
             return self._voltage
-
-    def set_speed_pct(self, pct):
-        with self._lock:
-            self._speed_pct = float(pct)
 
     def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         with self._lock:
@@ -162,6 +155,7 @@ class PhidgetActuator(ActuatorBase):
             try:
                 self._vel_min = float(dev.getMinVelocityLimit())
                 self._vel_max = float(dev.getMaxVelocityLimit())
+                dev.setVelocityLimit(self._vel_max)
             except Exception:
                 pass
             try:
@@ -243,11 +237,6 @@ class PhidgetActuator(ActuatorBase):
 
     def get_voltage(self):
         return self._voltage
-
-    def set_speed_pct(self, pct):
-        pct = max(1.0, min(100.0, float(pct)))
-        velocity = self._vel_min + (pct / 100.0) * (self._vel_max - self._vel_min)
-        self._dev.setVelocityLimit(velocity)
 
     def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         with self._lock:

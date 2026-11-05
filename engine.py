@@ -2,7 +2,6 @@ import threading
 import time
 
 STROKE_MM = 50.0
-SPEED_MIN, SPEED_MAX = 1.0, 100.0
 DWELL_MIN_S, DWELL_MAX_S = 0.0, 10.0
 CYCLES_MIN, CYCLES_MAX, CYCLES_STEP = 10000, 400000, 5000
 VOLTAGES = (5.0, 6.0, 7.4)
@@ -28,7 +27,6 @@ class CycleEngine:
         self._stop_evt = threading.Event()
         self._thread = None
         self.config = {
-            "speed": 50.0,
             "dwell": 2.0,
             "min_mm": 0.0,
             "max_mm": 50.0,
@@ -58,14 +56,11 @@ class CycleEngine:
             for key in merged:
                 if key in cfg:
                     merged[key] = cfg[key]
-            merged["speed"] = float(merged["speed"])
             merged["dwell"] = float(merged["dwell"])
             merged["min_mm"] = float(merged["min_mm"])
             merged["max_mm"] = float(merged["max_mm"])
             merged["target"] = int(merged["target"])
             merged["voltage"] = float(merged["voltage"])
-            if not SPEED_MIN <= merged["speed"] <= SPEED_MAX:
-                raise ValueError(f"speed must be {SPEED_MIN}-{SPEED_MAX}")
             if not DWELL_MIN_S <= merged["dwell"] <= DWELL_MAX_S:
                 raise ValueError(f"pause must be {DWELL_MIN_S}-{DWELL_MAX_S} s")
             if not 0.0 <= merged["min_mm"] <= STROKE_MM - 1.0:
@@ -87,13 +82,11 @@ class CycleEngine:
             self.config = merged
         if self.actuator.connected:
             self.actuator.set_voltage(merged["voltage"])
-            self.actuator.set_speed_pct(merged["speed"])
 
     def apply_config(self):
         cfg = self._cfg()
         if self.actuator.connected:
             self.actuator.set_voltage(cfg["voltage"])
-            self.actuator.set_speed_pct(cfg["speed"])
 
     def start(self):
         with self._lock:
@@ -143,7 +136,6 @@ class CycleEngine:
         try:
             cfg = self._cfg()
             self.actuator.set_voltage(cfg["voltage"])
-            self.actuator.set_speed_pct(cfg["speed"])
             self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
             while not self._stop_evt.is_set():
                 if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):

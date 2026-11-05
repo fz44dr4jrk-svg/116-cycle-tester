@@ -16,8 +16,6 @@ from engine import (
     CYCLES_STEP,
     DWELL_MAX_S,
     DWELL_MIN_S,
-    SPEED_MAX,
-    SPEED_MIN,
     CycleEngine,
 )
 
@@ -145,7 +143,6 @@ class App:
         }
         snap["limits"] = {
             "stroke_mm": STROKE_MM,
-            "speed": [SPEED_MIN, SPEED_MAX],
             "dwell": [DWELL_MIN_S, DWELL_MAX_S],
             "cycles": [CYCLES_MIN, CYCLES_MAX, CYCLES_STEP],
             "voltages": list(VOLTAGES),

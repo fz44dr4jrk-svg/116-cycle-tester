@@ -7,23 +7,24 @@ fully offline, deployable from a USB key.
 
 ## Features
 
-- **Servo voltage selector: 5.0 V / 6.0 V / 7.4 V** — set through the RCC0004 API
-  (`RCServoVoltage`), applied globally to all servo outputs. Use **6.0 V** for the
-  L16-...-6-R. Only use 7.4 V with a 7.4 V-rated actuator.
-- **Speed slider** (1–100 %) — mapped onto the controller's velocity limit.
-- **Pause between cycles slider: 0–10 s in 0.5 s steps** (sticky detents).
-- Every slider has a **numeric input box** for keyboard entry, synced both ways;
-  sliders snap (stick) to their step — 1 mm for the extent sliders, 5,000 for the
-  cycle target, 0.5 s for the pause.
-- **Extent min / max sliders** in **1 mm increments** over the 50 mm stroke
+- **Servo voltage selector: 5.0 V / 6.0 V / 7.4 V** as a 3-position slider — set
+  through the RCC0004 API (`RCServoVoltage`), applied globally to all servo
+  outputs. Use **6.0 V** for the L16-...-6-R (see the voltage/extent note below).
+- **Number of cycles slider: 10,000–400,000 in 5,000 steps**, with the **cycle
+  counter + progress bar directly above it**.
+- **Position min / max sliders** in **1 mm increments** over the 50 mm stroke
   (min 0–49 mm, max 1–50 mm).
-- **Number of cycles slider: 10,000–400,000 in 5,000 steps.**
-- **Cycle counter** with progress bar and a **RESET COUNTER** button.
-- **Extent indication**: numeric readout in mm plus a numbered 0–50 mm gauge with a
-  live marker and a band showing the configured min/max range.
-- **START / STOP** buttons. STOP (and automatic finish) returns the actuator to the
-  min extent. One cycle = extend to max extent, retract to min extent; the pause is
-  applied after each completed cycle.
+- **Interval between cycles slider: 0–10 s in 0.5 s steps** (sticky detents).
+- Every slider has a **numeric input box** for keyboard entry, synced both ways;
+  sliders snap (stick) to their step — 1 mm for the position sliders, 5,000 for
+  the cycle target, 0.5 s for the interval, one position for the voltage.
+- **Horizontal extent gauge** below the sliders: numbered 0–50 mm scale, live
+  marker, band showing the configured min/max range, plus a numeric mm readout.
+- **START / STOP / RESET** buttons under the sliders. STOP (and automatic finish)
+  returns the actuator to the min extent. One cycle = extend to max extent,
+  retract to min extent; the interval is applied after each completed cycle.
+- The whole control surface occupies the **left half** of the screen; the right
+  half is reserved for future functions.
 - Settings are persisted (`settings.json` next to the EXE) and restored on restart.
 - **Demo mode** (`--demo`): simulated actuator, no hardware needed — see `demo/`.
 

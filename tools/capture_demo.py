@@ -28,12 +28,11 @@ def main():
             page.evaluate(
                 """() => {
                   const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change')); };
-                  set('speed', 100);
                   set('dwell', 0.5);
                   set('min', 0);
                   set('max', 50);
                   set('cycles', 0);
-                  document.querySelector('.volt-btn[data-v="6.0"]').click();
+                  set('voltage', 1);
                 }"""
             )
             page.wait_for_timeout(400)

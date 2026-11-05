@@ -14,6 +14,13 @@ function cyclesIndex(value) {
 function cyclesValue(index) {
   return limits.cycles[0] + index * limits.cycles[2];
 }
+function voltageIndex(v) {
+  let best = 0;
+  for (let i = 0; i < limits.voltages.length; i++) {
+    if (Math.abs(limits.voltages[i] - v) < Math.abs(limits.voltages[best] - v)) best = i;
+  }
+  return best;
+}
 function snap(v, min, step) {
   return min + Math.round((v - min) / step) * step;
 }
@@ -64,23 +71,21 @@ function applyLimits() {
       el.min = lo; el.max = hi; el.step = step;
     }
   };
-  setRange("speed", limits.speed[0], limits.speed[1], 1);
   setRange("dwell", limits.dwell[0], limits.dwell[1], 0.5);
   setRange("min", 0, limits.stroke_mm - 1, 1);
   setRange("max", 1, limits.stroke_mm, 1);
   $("cycles").max = (limits.cycles[1] - limits.cycles[0]) / limits.cycles[2];
   setRange("cycles-num", limits.cycles[0], limits.cycles[1], limits.cycles[2]);
+  $("voltage").max = limits.voltages.length - 1;
 }
 
 function readControls() {
-  const active = document.querySelector(".volt-btn.active");
   return {
-    speed: parseFloat($("speed").value),
     dwell: parseFloat($("dwell").value),
     min_mm: parseFloat($("min").value),
     max_mm: parseFloat($("max").value),
     target: cyclesValue(parseInt($("cycles").value, 10)),
-    voltage: active ? parseFloat(active.dataset.v) : 6.0,
+    voltage: limits.voltages[parseInt($("voltage").value, 10)],
   };
 }
 
@@ -95,14 +100,13 @@ function updateOutput(id, text) {
 
 function wireControls() {
   const fmts = {
-    speed: (v) => v + " %",
     dwell: (v) => v + " s",
     min: (v) => v + " mm",
     max: (v) => v + " mm",
     cycles: (v) => fmtInt(v),
   };
-  const steps = { speed: 1, dwell: 0.5, min: 1, max: 1, cycles: null };
-  for (const id of ["speed", "dwell", "min", "max", "cycles"]) {
+  const steps = { dwell: 0.5, min: 1, max: 1, cycles: null };
+  for (const id of ["cycles", "min", "max", "dwell"]) {
     const el = $(id);
     el.addEventListener("input", () => {
       const step = id === "cycles" ? 1 : steps[id];
@@ -132,13 +136,12 @@ function wireControls() {
       pushConfig();
     });
   }
-  document.querySelectorAll(".volt-btn").forEach((b) => {
-    b.addEventListener("click", () => {
-      document.querySelectorAll(".volt-btn").forEach((x) => x.classList.remove("active"));
-      b.classList.add("active");
-      pushConfig();
-    });
+  const volt = $("voltage");
+  volt.addEventListener("input", () => {
+    volt.value = snap(parseFloat(volt.value), parseFloat(volt.min), 1);
+    updateOutput("voltage", limits.voltages[parseInt(volt.value, 10)] + " V");
   });
+  volt.addEventListener("change", pushConfig);
   $("btn-start").addEventListener("click", async () => {
     const r = await api("/api/start", {});
     if (!r.ok) showError(r.error);
@@ -162,31 +165,31 @@ function wireControls() {
   });
 }
 
-function yForMm(mm) {
-  const top = 40, bottom = 440;
-  return bottom - (mm / limits.stroke_mm) * (bottom - top);
+function xForMm(mm) {
+  const left = 40, right = 520;
+  return left + (mm / limits.stroke_mm) * (right - left);
 }
 
 function buildGauge() {
   const svg = $("gauge");
   svg.textContent = "";
   const axis = document.createElementNS(SVG_NS, "line");
-  axis.setAttribute("x1", 100); axis.setAttribute("y1", 30);
-  axis.setAttribute("x2", 100); axis.setAttribute("y2", 450);
+  axis.setAttribute("x1", 30); axis.setAttribute("y1", 40);
+  axis.setAttribute("x2", 530); axis.setAttribute("y2", 40);
   axis.setAttribute("stroke", "#8fa1b8");
   axis.setAttribute("stroke-width", "3");
   svg.appendChild(axis);
   for (let mm = 0; mm <= limits.stroke_mm; mm += 5) {
-    const y = yForMm(mm);
+    const x = xForMm(mm);
     const tick = document.createElementNS(SVG_NS, "line");
-    tick.setAttribute("x1", 92); tick.setAttribute("y1", y);
-    tick.setAttribute("x2", 108); tick.setAttribute("y2", y);
+    tick.setAttribute("x1", x); tick.setAttribute("y1", 32);
+    tick.setAttribute("x2", x); tick.setAttribute("y2", 48);
     tick.setAttribute("stroke", "#8fa1b8");
     tick.setAttribute("stroke-width", mm % 10 === 0 ? "3" : "1.5");
     svg.appendChild(tick);
     const label = document.createElementNS(SVG_NS, "text");
-    label.setAttribute("x", 84); label.setAttribute("y", y + 5);
-    label.setAttribute("text-anchor", "end");
+    label.setAttribute("x", x); label.setAttribute("y", 72);
+    label.setAttribute("text-anchor", "middle");
     label.setAttribute("fill", "#8fa1b8");
     label.setAttribute("font-size", "14");
     label.textContent = mm;
@@ -194,20 +197,20 @@ function buildGauge() {
   }
   const band = document.createElementNS(SVG_NS, "rect");
   band.setAttribute("id", "gauge-band");
-  band.setAttribute("x", 92); band.setAttribute("width", 16);
+  band.setAttribute("y", 30); band.setAttribute("height", 20);
   band.setAttribute("rx", 4);
   band.setAttribute("fill", "rgba(56,189,248,0.25)");
   svg.appendChild(band);
   const marker = document.createElementNS(SVG_NS, "line");
   marker.setAttribute("id", "gauge-marker");
-  marker.setAttribute("x1", 40); marker.setAttribute("x2", 145);
+  marker.setAttribute("y1", 8); marker.setAttribute("y2", 72);
   marker.setAttribute("stroke", "#38bdf8");
   marker.setAttribute("stroke-width", "5");
   marker.setAttribute("stroke-linecap", "round");
   svg.appendChild(marker);
   const dot = document.createElementNS(SVG_NS, "circle");
   dot.setAttribute("id", "gauge-dot");
-  dot.setAttribute("cx", 100); dot.setAttribute("r", "9");
+  dot.setAttribute("cy", 40); dot.setAttribute("r", "9");
   dot.setAttribute("fill", "#38bdf8");
   dot.setAttribute("stroke", "#10151c");
   dot.setAttribute("stroke-width", "3");
@@ -217,16 +220,15 @@ function buildGauge() {
 
 function updateGauge(config, positionMm) {
   const band = $("gauge-band");
-  const yMax = yForMm(config.max_mm);
-  const yMin = yForMm(config.min_mm);
-  band.setAttribute("y", yMax);
-  band.setAttribute("height", Math.max(2, yMin - yMax));
-  const y = yForMm(positionMm);
+  const xMin = xForMm(config.min_mm);
+  const xMax = xForMm(config.max_mm);
+  band.setAttribute("x", xMin);
+  band.setAttribute("width", Math.max(2, xMax - xMin));
+  const x = xForMm(positionMm);
   const marker = $("gauge-marker");
-  marker.setAttribute("y1", y);
-  marker.setAttribute("y2", y);
-  const dot = $("gauge-dot");
-  dot.setAttribute("cy", y);
+  marker.setAttribute("x1", x);
+  marker.setAttribute("x2", x);
+  $("gauge-dot").setAttribute("cx", x);
 }
 
 function render() {
@@ -257,7 +259,7 @@ function render() {
   }
 
   const activeEl = document.activeElement;
-  const ids = ["speed", "dwell", "min", "max", "cycles"];
+  const ids = ["cycles", "min", "max", "dwell"];
   if (!running) {
     for (const id of ids) {
       const el = $(id);
@@ -275,23 +277,22 @@ function render() {
       el.disabled = false;
       num.disabled = false;
     }
-    document.querySelectorAll(".volt-btn").forEach((b) => {
-      b.disabled = false;
-      b.classList.toggle("active", parseFloat(b.dataset.v) === s.voltage);
-    });
+    const volt = $("voltage");
+    if (activeEl !== volt) volt.value = String(voltageIndex(s.voltage));
+    volt.disabled = false;
   } else {
     for (const id of ids) {
       $(id).disabled = true;
       $(id + "-num").disabled = true;
     }
-    document.querySelectorAll(".volt-btn").forEach((b) => (b.disabled = true));
+    $("voltage").disabled = true;
   }
 
-  $("speed-out").textContent = c.speed + " %";
   $("dwell-out").textContent = c.dwell + " s";
   $("min-out").textContent = c.min_mm + " mm";
   $("max-out").textContent = c.max_mm + " mm";
   $("cycles-out").textContent = fmtInt(c.target);
+  $("voltage-out").textContent = s.voltage + " V";
 
   $("count").textContent = fmtInt(s.count);
   $("target").textContent = fmtInt(c.target);
