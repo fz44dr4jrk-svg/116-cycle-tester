@@ -146,10 +146,15 @@ Control modes (options 1–4):
   require the load cell and refuse to start with a clear message otherwise.
 - **2 — failure mode**: each cycle's peak load is compared with the previous
   cycle's peak; if it drops by more than the **user-defined failure drop
-  (10–50%, default 30%)**, the actuator stops, the cycle count and all data are
-  written to `Failure.log`, and the run file is saved. (The load naturally falls
-  to ~0 while retracting between cycles — that is not a failure; only the
-  per-cycle peak-to-peak drop is evaluated.)
+  (10–50%, default 30%)**, the actuator stops and `Failure.log` is written with
+  a `failure_type`: `part_break` if the actuator kept moving, `actuator_stuck`
+  if the load dropped while the actuator stalled (max position no longer
+  advancing) or the cycle load was flat (<1%) for 5 consecutive cycles —
+  your actuators live 300k–400k cycles. (The load naturally falls to ~0 while
+  retracting between cycles — that is not a failure; only per-cycle peaks are
+  evaluated.) Same logic in mode 4; in mode 3, reaching full stroke without
+  ever hitting the goal load means no resistance is left and is reported as
+  `part_break`.
 - **3 — constant load**: set a **load goal 0.1–6.0 kg**. Position **min** is the
   user-set start point; position **max is greyed out** — the app decides it
   (capped at the 50 mm stroke). The run **self-calibrates over the first cycles**:

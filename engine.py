@@ -57,6 +57,8 @@ class CycleEngine:
         self._goal_reached = False
         self._flat_count = 0
         self._failure_type = None
+        self._cycle_maxpos = 0.0
+        self._prev_maxpos = None
 
     def snapshot(self):
         with self._lock:
@@ -151,6 +153,8 @@ class CycleEngine:
             self._goal_reached = False
             self._flat_count = 0
             self._failure_type = None
+            self._cycle_maxpos = 0.0
+            self._prev_maxpos = None
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -206,6 +210,9 @@ class CycleEngine:
                     self._cycle_peak = load
                 if load > self._run_peak:
                     self._run_peak = load
+            pos = self.actuator.position_mm
+            if pos > self._cycle_maxpos:
+                self._cycle_maxpos = pos
             time.sleep(0.05)
 
     def _check_cycle_peak(self):
@@ -223,11 +230,24 @@ class CycleEngine:
                 and prev > PEAK_EPS_KG
                 and peak < (1.0 - drop) * prev
             ):
-                self._fail_reason = (
-                    f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
-                    f"cycle peak: {peak:.3f} kg vs {prev:.3f} kg (part break)"
+                actuator_moved = (
+                    self._prev_maxpos is None
+                    or self._cycle_maxpos >= self._prev_maxpos - 2.0
                 )
-                self._failure_type = "part_break"
+                if actuator_moved:
+                    self._failure_type = "part_break"
+                    self._fail_reason = (
+                        f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
+                        f"cycle peak while the actuator kept moving: {peak:.3f} kg vs {prev:.3f} kg "
+                        f"(part break)"
+                    )
+                else:
+                    self._failure_type = "actuator_stuck"
+                    self._fail_reason = (
+                        f"load dropped {peak:.3f} kg vs {prev:.3f} kg and the actuator stalled "
+                        f"(max pos {self._cycle_maxpos:.1f} mm vs {self._prev_maxpos:.1f} mm) "
+                        f"- actuator may be dead"
+                    )
                 self._fail_evt.set()
                 self._fail_prev_peak = prev
             if cfg["mode"] in ("2a", "3") and prev is not None and prev > 0.2:
@@ -244,6 +264,7 @@ class CycleEngine:
                     self._fail_evt.set()
                     self._fail_prev_peak = prev
         self._prev_peak = peak
+        self._prev_maxpos = self._cycle_maxpos
 
     def _sleep(self, seconds):
         deadline = time.monotonic() + seconds
@@ -299,6 +320,7 @@ class CycleEngine:
                 and not self._fail_evt.is_set()
             ):
                 self._cycle_peak = 0.0
+                self._cycle_maxpos = 0.0
                 if self.loadcell is not None:
                     try:
                         self.loadcell.reset_peak()
@@ -357,10 +379,11 @@ class CycleEngine:
                         note = f"cycle peak {peak:.3f} kg below goal {goal}: extent -> {self._extent:.1f} mm"
                         if self._extent >= STROKE_MM and not self._fail_evt.is_set():
                             self._fail_reason = (
-                                f"actuator at full stroke ({STROKE_MM} mm) but cycle peak "
-                                f"{peak:.3f} kg still below goal {goal} - actuator may be dead"
+                                f"actuator reached full stroke ({STROKE_MM} mm) but cycle peak "
+                                f"{peak:.3f} kg still below goal {goal} - no resistance: part "
+                                f"likely failed"
                             )
-                            self._failure_type = "actuator_stuck"
+                            self._failure_type = "part_break"
                             self._fail_evt.set()
                     elif peak > goal * 1.05:
                         self._extent = max(cfg["min_mm"] + 0.5, self._extent - 0.5)
