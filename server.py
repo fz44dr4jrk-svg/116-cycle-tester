@@ -164,13 +164,19 @@ class App:
         lc = self.loadcell
         hist = lc.history_window(win_s, max_points) if lc.connected else []
         hist_peak = max((v for _, v in hist), default=0.0)
+        mod_peak = 0.0
+        if lc.connected:
+            try:
+                mod_peak = lc.module_peak_kg() or 0.0
+            except Exception:
+                mod_peak = 0.0
         kg_now = round(lc.latest_kg(), 3) if lc.connected else None
         snap["load"] = {
             "connected": lc.connected,
             "error": lc.error,
             "name": lc.name,
             "kg": kg_now,
-            "peak_kg": round(max(snap.get("run_peak_kg", 0.0), hist_peak, kg_now or 0.0), 3),
+            "peak_kg": round(max(snap.get("run_peak_kg", 0.0), hist_peak, mod_peak, kg_now or 0.0), 3),
             "prev_cycle_peak_kg": snap.get("prev_cycle_peak_kg"),
             "history": hist,
         }

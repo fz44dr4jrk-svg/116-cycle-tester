@@ -144,6 +144,11 @@ class CycleEngine:
             self._fail_prev_peak = None
             self._run_peak = 0.0
             self._fail_evt.clear()
+            if self.loadcell is not None:
+                try:
+                    self.loadcell.reset_peak()
+                except Exception:
+                    pass
             self.status = STATUS_RUNNING
             self._stop_evt.clear()
             if self.recorder is not None:
@@ -241,8 +246,20 @@ class CycleEngine:
                 step = 1.0 if remaining > 0.5 else (0.5 if remaining > 0.2 else 0.1)
             else:
                 step = 1.0
-            pos = min(cap, pos + step)
-            self.actuator.move_to_mm(pos, timeout_s=30, cancel_evt=self._stop_evt)
+            target = min(cap, pos + step)
+            self.actuator.set_target_mm(target)
+            while not self._stop_evt.is_set() and not self._fail_evt.is_set():
+                load = self._load()
+                if load is not None:
+                    if load > self._cycle_peak:
+                        self._cycle_peak = load
+                    if load >= target_load:
+                        self.actuator.halt()
+                        return self.actuator.position_mm
+                if self.actuator.position_mm >= target - 0.05:
+                    break
+                time.sleep(0.01)
+            pos = self.actuator.position_mm
         return pos
 
     def _run(self):

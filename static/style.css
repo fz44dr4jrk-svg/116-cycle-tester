@@ -132,9 +132,9 @@ main {
   padding: 0 8px;
 }
 
-.load-value { font-size: 46px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.load-value { display: flex; align-items: baseline; font-size: 46px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .load-value .unit { font-size: 22px; color: var(--muted); font-weight: 600; }
-.prev-peak { margin-left: 18px; font-size: 18px; font-weight: 700; color: var(--warn); }
+.prev-peak { margin-left: auto; padding-left: 18px; font-size: 18px; font-weight: 700; color: var(--warn); white-space: nowrap; }
 .prev-peak span { font-variant-numeric: tabular-nums; }
 
 #load-chart { width: 100%; height: auto; display: block; background: #0c1118; border: 1px solid var(--panel-edge); border-radius: 10px; margin: 10px 0 14px; }

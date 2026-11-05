@@ -5,8 +5,8 @@ from collections import deque
 
 READ_CMD = b"!001:SYS?\r"
 BAUD = 115200
-POLL_HZ = 50.0
-HIST_MAX = 90000
+POLL_HZ = 100.0
+HIST_MAX = 180000
 WINDOW_MAX_S = 1800.0
 POINTS_MAX = 1200
 
@@ -31,6 +31,12 @@ class LoadCellBase:
     def history_window(self, window_s=10.0, max_points=300):
         raise NotImplementedError
 
+    def reset_peak(self):
+        pass
+
+    def module_peak_kg(self):
+        return None
+
     def tare(self):
         raise NotImplementedError
 
@@ -43,6 +49,7 @@ class SimulatedLoadCell(LoadCellBase):
         self._lock = threading.Lock()
         self._gross = 0.0
         self._tare = 0.0
+        self._alltime_peak = 0.0
         self._hist = deque(maxlen=HIST_MAX)
         self._stop = threading.Event()
         self._thread = None
@@ -64,7 +71,10 @@ class SimulatedLoadCell(LoadCellBase):
             gross = max(0.0, 0.09 * pos) + random.uniform(-0.01, 0.01)
             with self._lock:
                 self._gross = gross
-                self._hist.append((time.monotonic(), gross - self._tare))
+                net = gross - self._tare
+                if net > self._alltime_peak:
+                    self._alltime_peak = net
+                self._hist.append((time.monotonic(), net))
             time.sleep(1.0 / POLL_HZ)
 
     def latest_kg(self):
@@ -85,6 +95,14 @@ class SimulatedLoadCell(LoadCellBase):
             self._tare = self._gross
         return True
 
+    def reset_peak(self):
+        with self._lock:
+            self._alltime_peak = self._gross - self._tare
+
+    def module_peak_kg(self):
+        with self._lock:
+            return self._alltime_peak
+
 
 class DscUsbLoadCell(LoadCellBase):
     def __init__(self, port=None):
@@ -93,9 +111,21 @@ class DscUsbLoadCell(LoadCellBase):
         self._lock = threading.Lock()
         self._gross = 0.0
         self._tare = 0.0
+        self._mod_peak = None
         self._hist = deque(maxlen=HIST_MAX)
         self._stop = threading.Event()
         self._thread = None
+
+    def _cmd(self, payload):
+        self._ser.reset_input_buffer()
+        self._ser.write(payload)
+        line = self._ser.read_until(b"\r", 64).strip()
+        if not line or line == b"?":
+            return None
+        try:
+            return float(line)
+        except ValueError:
+            return None
 
     def _probe(self, device):
         import serial
@@ -132,7 +162,11 @@ class DscUsbLoadCell(LoadCellBase):
                 "no DSCUSB found on any COM port - install the DSC Toolkit / FTDI drivers "
                 "(SW-DSCUSBDRV) so the DSCUSB appears as a virtual COM port, or pass --loadcell-port COMx"
             )
-        self._ser = serial.Serial(port, BAUD, timeout=0.2)
+        self._ser = serial.Serial(port, BAUD, timeout=0.05)
+        try:
+            self._cmd(b"!001:DP=6\r")
+        except Exception:
+            pass
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()
         self.connected = True
@@ -150,19 +184,35 @@ class DscUsbLoadCell(LoadCellBase):
         self.connected = False
 
     def _reader(self):
+        tick = 0
         while not self._stop.is_set():
             try:
-                self._ser.reset_input_buffer()
-                self._ser.write(READ_CMD)
-                line = self._ser.read_until(b"\r", 64).strip()
-                if line and line != b"?":
-                    gross = float(line)
+                gross = self._cmd(READ_CMD)
+                if gross is not None:
+                    tick += 1
+                    if tick % 5 == 0:
+                        peak = self._cmd(b"!001:PEAK?\r")
+                        if peak is not None:
+                            with self._lock:
+                                self._mod_peak = peak - self._tare
                     with self._lock:
                         self._gross = gross
                         self._hist.append((time.monotonic(), gross - self._tare))
             except Exception:
-                time.sleep(0.1)
-            time.sleep(1.0 / POLL_HZ)
+                time.sleep(0.02)
+            time.sleep(0.005)
+
+    def reset_peak(self):
+        try:
+            self._cmd(b"!001:RSPT\r")
+        except Exception:
+            pass
+        with self._lock:
+            self._mod_peak = None
+
+    def module_peak_kg(self):
+        with self._lock:
+            return self._mod_peak
 
     def latest_kg(self):
         with self._lock:

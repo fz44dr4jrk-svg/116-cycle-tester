@@ -31,6 +31,12 @@ class ActuatorBase:
     def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         raise NotImplementedError
 
+    def set_target_mm(self, mm):
+        raise NotImplementedError
+
+    def halt(self):
+        raise NotImplementedError
+
     @property
     def position_mm(self):
         raise NotImplementedError
@@ -85,9 +91,16 @@ class SimulatedActuator(ActuatorBase):
         with self._lock:
             return self._voltage
 
-    def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
+    def set_target_mm(self, mm):
         with self._lock:
             self._target = max(0.0, min(STROKE_MM, float(mm)))
+
+    def halt(self):
+        with self._lock:
+            self._target = self._pos
+
+    def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
+        self.set_target_mm(mm)
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
             if cancel_evt is not None and cancel_evt.is_set():
@@ -237,6 +250,17 @@ class PhidgetActuator(ActuatorBase):
 
     def get_voltage(self):
         return self._voltage
+
+    def set_target_mm(self, mm):
+        with self._lock:
+            self._dev.setTargetPosition(self._mm_to_position(mm))
+
+    def halt(self):
+        try:
+            with self._lock:
+                self._dev.setTargetPosition(float(self._dev.getPosition()))
+        except Exception:
+            pass
 
     def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         with self._lock:
