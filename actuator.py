@@ -5,12 +5,10 @@ import time
 STROKE_MM = 50.0
 VOLTAGES = (5.0, 6.0, 7.4)
 SIM_MAX_MM_PER_S = 60.0
-PULSE_MIN_US = 550.0
-PULSE_MAX_US = 2450.0
+PULSE_MIN_US = 950.0
+PULSE_MAX_US = 2028.0
 POS_MIN = 0.0
 POS_MAX = 180.0
-POS_AT_0_MM = 30.0
-POS_AT_50_MM = 140.0
 
 
 class ActuatorBase:
@@ -211,9 +209,7 @@ class PhidgetActuator(ActuatorBase):
 
     def _mm_to_position(self, mm):
         mm = max(0.0, min(STROKE_MM, float(mm)))
-        lo = max(self._pos_min, POS_AT_0_MM)
-        hi = min(self._pos_max, POS_AT_50_MM)
-        return lo + (mm / STROKE_MM) * (hi - lo)
+        return self._pos_min + (mm / STROKE_MM) * (self._pos_max - self._pos_min)
 
     def set_voltage(self, volts):
         volts = float(volts)
@@ -280,11 +276,9 @@ class PhidgetActuator(ActuatorBase):
             pos = float(self._dev.getPosition())
         except Exception:
             return 0.0
-        lo = max(self._pos_min, POS_AT_0_MM)
-        hi = min(self._pos_max, POS_AT_50_MM)
-        if hi <= lo:
+        if self._pos_max <= self._pos_min:
             return 0.0
-        mm = (pos - lo) / (hi - lo) * STROKE_MM
+        mm = (pos - self._pos_min) / (self._pos_max - self._pos_min) * STROKE_MM
         return max(0.0, min(STROKE_MM, mm))
 
     def close(self):
