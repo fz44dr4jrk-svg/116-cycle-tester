@@ -144,5 +144,16 @@ actuator's own stroke, the **whole** position range maps 1:1 to 0–50 mm (the
 0–180 scale itself is irrelevant; only the pulse width matters). If your unit's
 endpoints differ, measure the pulse widths at 0 mm and 50 mm with a ruler in the
 Phidget Control Panel and update the two constants, then rebuild.
+
+**Achieved extent depends on servo voltage under load.** Measured on the
+reference setup at full commanded extent (slider 50 mm): 5.0 V → 40 mm,
+6.0 V → 45 mm, **7.4 V → exactly 50 mm**. The app always commands the correct
+pulse width; how far the rod physically travels at the top end depends on the
+selected voltage and the load in your frame. Select **7.4 V** in the dashboard
+for the full 50 mm stroke (note: the L16-...-6-R is a 6 V-rated motor — at 7.4 V
+it runs faster/hotter, so respect the datasheet duty cycle during long cycle
+tests), or stay at 6.0 V and cap the extent-max slider at the reachable value
+(e.g. 45 mm).
+
 The RCC0004 reports commanded position (no feedback input); the L16-R feedback
 wire can be wired to a Phidget analog input later for true closed-loop verification.
