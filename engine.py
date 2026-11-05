@@ -259,8 +259,7 @@ class CycleEngine:
                     if load > self._cycle_peak:
                         self._cycle_peak = load
                     if load >= target_load:
-                        self.actuator.halt()
-                        return self.actuator.position_mm
+                        break
                 if self.actuator.position_mm >= target - 0.05:
                     break
                 time.sleep(0.01)

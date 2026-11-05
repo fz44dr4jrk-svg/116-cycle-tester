@@ -133,10 +133,11 @@ Control modes (options 1–4):
 - **3 — constant load**: set a **load goal 0.1–6.0 kg**. Position **min** is the
   user-set start point; position **max is greyed out** — the app decides it
   (capped at the 50 mm stroke). On START the actuator extends in **1 mm
-  increments**, reading the actual load after each step, until the measured
-  load reaches the goal; then it keeps cycling, increasing the extension
-  automatically as the material weakens to hold the goal. All samples are
-  logged. Same failure stop as mode 2.
+  increments** (0.5/0.1 mm near the goal), reading the actual load continuously
+  during the move; the goal acts as a **movement limiter** — once the load
+  reaches the goal no further extension is commanded, the cycle continues
+  (retract, count, next cycle), and the extension adapts upward automatically as
+  the material weakens. All samples are logged. Same failure stop as mode 2.
 - **4 — constant path**: fixed min/max extent; the load decline over time is
   logged. Same failure stop.
 
