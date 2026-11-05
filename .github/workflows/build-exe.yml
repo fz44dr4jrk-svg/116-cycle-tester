@@ -8,7 +8,16 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: L16CycleTester-windows
+            path: dist/L16CycleTester.exe
+          - os: macos-latest
+            artifact: L16CycleTester-macos
+            path: dist/L16CycleTester
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -16,11 +25,11 @@ jobs:
           python-version: "3.12"
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Build single-file EXE
+      - name: Build single-file binary
         run: python build_exe.py
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
-          name: L16CycleTester-windows
-          path: dist/L16CycleTester.exe
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.path }}
           retention-days: 30

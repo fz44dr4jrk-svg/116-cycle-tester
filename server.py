@@ -31,7 +31,7 @@ from recorder import Recorder
 BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 STATIC_DIR = BASE_DIR / "static"
 APP_DIR = (
-    Path(sys.executable).resolve().parent
+    Path(sys.argv[0]).resolve().parent
     if getattr(sys, "frozen", False)
     else Path(__file__).resolve().parent
 )
