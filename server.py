@@ -52,6 +52,15 @@ MIME = {
 }
 
 
+def probe_phidget():
+    try:
+        from Phidget22.Devices.RCServo import RCServo  # noqa: F401
+
+        return "Phidget22 library + native phidget22 library loaded OK"
+    except Exception as exc:
+        return f"Phidget22 library load FAILED: {type(exc).__name__}: {exc}"
+
+
 def acquire_single_instance():
     if os.name == "nt":
         import ctypes
@@ -131,6 +140,7 @@ class App:
             "name": self.actuator.name,
             "connected": self.actuator.connected,
             "error": self.actuator.error,
+            "error_owner": getattr(self.actuator, "error_owner", None),
         }
         snap["limits"] = {
             "stroke_mm": STROKE_MM,
@@ -246,6 +256,8 @@ def main():
         return
 
     actuator = make_actuator(args.demo, channel=args.channel)
+    if not args.demo:
+        log(f"probe: {probe_phidget()}")
     try:
         actuator.open()
         log(f"controller opened: {actuator.name}")

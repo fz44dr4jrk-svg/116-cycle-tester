@@ -154,7 +154,11 @@ function render() {
   const statusPill = $("status-pill");
   statusPill.textContent = s.status.toUpperCase();
   statusPill.className = "pill " + (running ? "run" : s.status === "done" ? "done" : s.status === "stopped" ? "bad" : "");
-  showError(s.error || (s.device.connected ? null : s.device.error));
+  const devError = s.device.connected ? null : s.device.error;
+  showError(s.error || devError);
+  if (!s.device.connected && s.device.error_owner) {
+    showError((devError ? devError + " " : "") + "Controller currently held by: " + s.device.error_owner);
+  }
 
   const activeEl = document.activeElement;
   const controls = ["speed", "dwell", "min", "max", "cycles"];

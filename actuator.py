@@ -1,3 +1,4 @@
+import re
 import threading
 import time
 
@@ -105,9 +106,10 @@ class SimulatedActuator(ActuatorBase):
 
 
 class PhidgetActuator(ActuatorBase):
-    def __init__(self, channel=0, attach_timeout_ms=5000):
+    def __init__(self, channel=0, attach_timeout_ms=8000):
         self.channel = channel
         self.attach_timeout_ms = attach_timeout_ms
+        self.error_owner = None
         self._dev = None
         self._pos_min = 0.0
         self._pos_max = 250.0
@@ -158,12 +160,14 @@ class PhidgetActuator(ActuatorBase):
                     pass
             self._dev = None
             self.connected = False
+            self.error_owner = None
             detail = f"{type(exc).__name__}: {exc}"
-            if "in use by" in str(exc):
+            match = re.search(r'in use by:.*path: "([^"]+)"\s*-\s*pid:\s*(\d+)', str(exc), re.S)
+            if match:
+                self.error_owner = f"{match.group(1)} (pid {match.group(2)})"
                 detail += (
-                    " | The controller is already open in another program (a second copy"
-                    " of L16CycleTester, the Phidget Control Panel, or MAX). Close that"
-                    " program, then press RECONNECT here."
+                    f" | HELD BY: {self.error_owner} - close that program, then press"
+                    " RECONNECT here (the app retries automatically every 5 s)."
                 )
             self.error = (
                 f"RCC0004 not usable on USB channel {self.channel} ({detail}). "
