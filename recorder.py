@@ -2,7 +2,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-MAX_ROWS = 1000000
+EXCEL_ROW_CAP = 1048576
+SOFT_CAP = 1000000
 FLUSH_EVERY = 500
 SAMPLE_DT = 1.0
 
@@ -18,7 +19,6 @@ class Recorder:
         self._last_sample = 0.0
         self._rows = 0
         self._pending = 0
-        self._part = 1
 
     @property
     def active(self):
@@ -38,7 +38,6 @@ class Recorder:
         self._last_sample = 0.0
         self._rows = 1
         self._pending = 0
-        self._part = 1
         self.wb = Workbook()
         self.ws = self.wb.active
         self.ws.title = "data"
@@ -48,16 +47,18 @@ class Recorder:
     def _append(self, row):
         if self.ws is None:
             return
+        if self._rows >= EXCEL_ROW_CAP:
+            return
         self.ws.append(row)
         self._rows += 1
         self._pending += 1
         if self._pending >= FLUSH_EVERY:
             self._save()
-        if self._rows > MAX_ROWS:
-            self._rotate()
 
     def sample(self, t, cycle, pos, load):
         if self.ws is None or t - self._last_sample < SAMPLE_DT:
+            return
+        if self._rows >= SOFT_CAP:
             return
         self._last_sample = t
         self._append([
@@ -97,19 +98,6 @@ class Recorder:
         if self.wb is not None and self.path is not None:
             self.wb.save(self.path)
             self._pending = 0
-
-    def _rotate(self):
-        self._save()
-        self._part += 1
-        base = self.path.stem
-        self.path = self.dir / f"{base}_part{self._part}.xlsx"
-        from openpyxl import Workbook
-
-        self.wb = Workbook()
-        self.ws = self.wb.active
-        self.ws.title = "data"
-        self.ws.append(["timestamp", "elapsed_s", "cycle", "position_mm", "load_kg", "event"])
-        self._rows = 1
 
     def finish(self, reason, cycle=0, pos="", load="", run_peak=None):
         if self.ws is None:
