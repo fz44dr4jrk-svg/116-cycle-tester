@@ -125,6 +125,7 @@ class PhidgetActuator(ActuatorBase):
         self._vel_max = 250.0
         self._voltage = 6.0
         self.applied_pulse = None
+        self.applied_position = None
         self._reached = threading.Event()
         self._lock = threading.Lock()
 
@@ -156,8 +157,10 @@ class PhidgetActuator(ActuatorBase):
             try:
                 self._pos_min = float(dev.getMinPosition())
                 self._pos_max = float(dev.getMaxPosition())
+                self.applied_position = (self._pos_min, self._pos_max)
             except Exception:
                 self._pos_min, self._pos_max = POS_MIN, POS_MAX
+                self.applied_position = (POS_MIN, POS_MAX)
             try:
                 self._vel_min = float(dev.getMinVelocityLimit())
                 self._vel_max = float(dev.getMaxVelocityLimit())
