@@ -131,7 +131,6 @@ class PhidgetActuator(ActuatorBase):
             dev.setChannel(self.channel)
             dev.openWaitForAttachment(self.attach_timeout_ms)
             self._dev = dev
-            dev.setEngaged(True)
             try:
                 self._pos_min = float(dev.getMinPosition())
                 self._pos_max = float(dev.getMaxPosition())
@@ -142,6 +141,8 @@ class PhidgetActuator(ActuatorBase):
                 self._vel_max = float(dev.getMaxVelocityLimit())
             except Exception:
                 pass
+            dev.setTargetPosition(self._pos_min)
+            dev.setEngaged(True)
             try:
                 dev.setOnTargetPositionReachedHandler(self._on_reached)
             except Exception:

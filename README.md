@@ -82,6 +82,10 @@ Then check, in this order:
    (same folder the EXE was started from) and shows the error text in the
    dashboard. Copy that log file back via USB if you need help interpreting it.
 
+Note: in Task Manager a one-file EXE shows **two** processes with the same name —
+a small bootloader parent and the unpacked child. That is normal, it is still a
+single instance (one browser window).
+
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
