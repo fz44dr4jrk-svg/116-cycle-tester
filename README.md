@@ -102,6 +102,26 @@ MAX / the Phidget Control Panel can use it again.
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
+## macOS build (prepared, currently paused)
+
+The app is portable to macOS and the build supports it (CI matrix entry ready in
+`.github/workflows/build-exe.yml`, commented; `build_exe.py` bundles
+`libphidget22.dylib`). The macOS CI build is paused on request — re-enable the
+commented matrix entry when needed. To build locally on a Mac:
+`pip install -r requirements.txt && python3 build_exe.py`
+→ `dist/L16CycleTester` (run it by double-clicking or `./dist/L16CycleTester`;
+if Gatekeeper blocks it: right-click → Open, or
+`xattr -d com.apple.quarantine dist/L16CycleTester`).
+
+macOS prerequisites:
+
+- `brew install libusb` — the bundled `libphidget22.dylib` links against libusb-1.0
+  for the RCC0004.
+- The FTDI VCP driver for the DSCUSB (from the vendor's site) so it appears as
+  `/dev/cu.usbserial-…`; the app auto-detects it (or `--loadcell-port /dev/cu.usbserial-XXX`).
+- The single-instance guard uses a lock file next to the binary on macOS/Linux
+  (named mutex on Windows); settings/log/xlsx land next to the launched binary.
+
 ## Load cell (Applied Measurements DBBSMM-50KG + DSCUSB)
 
 The right half of the dashboard is the load-cell panel: live value in kg
