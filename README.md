@@ -125,12 +125,12 @@ tools/capture_demo.py             regenerates demo/ screenshots
 
 ## Calibration notes
 
-At connect, the app sets the RCC0004 pulse window to **1000–2000 µs**
-(`PULSE_MIN_US` / `PULSE_MAX_US` in `actuator.py`) — the L16-R maps its full 50 mm
-stroke onto the standard RC 1–2 ms pulse range — and enables speed ramping. The
-mm → servo-position mapping then spans `MinPosition`–`MaxPosition` (read from the
-device) over the 50 mm stroke (`STROKE_MM`). If your measured endpoints still do
-not line up (e.g. 0 mm reads a few mm off), fine-tune `PULSE_MIN_US` /
-`PULSE_MAX_US` in `actuator.py` to your unit's actual range and rebuild.
+At connect, the app sets the RCC0004 to **Position 0–180** and **pulse width
+450–2450 µs** (`POS_MIN` / `POS_MAX` / `PULSE_MIN_US` / `PULSE_MAX_US` in
+`actuator.py`, clamped to the device limits) and enables speed ramping. The
+mm → servo-position mapping then spans that position range over the 50 mm stroke
+(`STROKE_MM`), so 1 mm on the slider = 1 mm of rod travel. If your measured
+endpoints still do not line up, fine-tune those four constants in `actuator.py`
+to your unit's real values and rebuild.
 The RCC0004 reports commanded position (no feedback input); the L16-R feedback
 wire can be wired to a Phidget analog input later for true closed-loop verification.

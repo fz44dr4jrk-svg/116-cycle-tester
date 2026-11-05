@@ -5,8 +5,10 @@ import time
 STROKE_MM = 50.0
 VOLTAGES = (5.0, 6.0, 7.4)
 SIM_MAX_MM_PER_S = 60.0
-PULSE_MIN_US = 1000.0
-PULSE_MAX_US = 2000.0
+PULSE_MIN_US = 450.0
+PULSE_MAX_US = 2450.0
+POS_MIN = 0.0
+POS_MAX = 180.0
 
 
 class ActuatorBase:
@@ -136,20 +138,25 @@ class PhidgetActuator(ActuatorBase):
             dev.openWaitForAttachment(self.attach_timeout_ms)
             self._dev = dev
             try:
-                self._pos_min = float(dev.getMinPosition())
-                self._pos_max = float(dev.getMaxPosition())
-            except Exception:
-                pass
-            try:
-                self._vel_min = float(dev.getMinVelocityLimit())
-                self._vel_max = float(dev.getMaxVelocityLimit())
-            except Exception:
-                pass
-            try:
                 lo = float(dev.getMinPulseWidthLimit())
                 hi = float(dev.getMaxPulseWidthLimit())
                 dev.setMinPulseWidth(min(max(PULSE_MIN_US, lo), hi))
                 dev.setMaxPulseWidth(min(max(PULSE_MAX_US, lo), hi))
+            except Exception:
+                pass
+            try:
+                dev.setMinPosition(POS_MIN)
+                dev.setMaxPosition(POS_MAX)
+            except Exception:
+                pass
+            try:
+                self._pos_min = float(dev.getMinPosition())
+                self._pos_max = float(dev.getMaxPosition())
+            except Exception:
+                self._pos_min, self._pos_max = POS_MIN, POS_MAX
+            try:
+                self._vel_min = float(dev.getMinVelocityLimit())
+                self._vel_max = float(dev.getMaxVelocityLimit())
             except Exception:
                 pass
             try:
