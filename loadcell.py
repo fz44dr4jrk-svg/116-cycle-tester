@@ -163,10 +163,11 @@ class DscUsbLoadCell(LoadCellBase):
                 "(SW-DSCUSBDRV) so the DSCUSB appears as a virtual COM port, or pass --loadcell-port COMx"
             )
         self._ser = serial.Serial(port, BAUD, timeout=0.05)
-        try:
-            self._cmd(b"!001:DP=6\r")
-        except Exception:
-            pass
+        for payload in (b"!001:DP=6\r", b"!001:FFST=0\r", b"!001:RATE=100\r"):
+            try:
+                self._cmd(payload)
+            except Exception:
+                pass
         self._thread = threading.Thread(target=self._reader, daemon=True)
         self._thread.start()
         self.connected = True

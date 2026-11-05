@@ -132,12 +132,16 @@ Control modes (options 1–4):
   per-cycle peak-to-peak drop is evaluated.)
 - **3 — constant load**: set a **load goal 0.1–6.0 kg**. Position **min** is the
   user-set start point; position **max is greyed out** — the app decides it
-  (capped at the 50 mm stroke). On START the actuator extends in **1 mm
-  increments** (0.5/0.1 mm near the goal), reading the actual load continuously
-  during the move; the goal acts as a **movement limiter** — once the load
-  reaches the goal no further extension is commanded, the cycle continues
-  (retract, count, next cycle), and the extension adapts upward automatically as
-  the material weakens. All samples are logged. Same failure stop as mode 2.
+  (capped at the 50 mm stroke). The run **self-calibrates over the first cycles**:
+  each cycle extends 1 mm further than the last, and after each completed cycle
+  the measured cycle peak is compared with the goal — below goal → extent
+  increases by 1 mm next cycle; above goal+5% → extent decreases by 0.5 mm;
+  otherwise held. A mid-move limiter stops extension at 115% of the goal as a
+  safety. The DSCUSB runs at its max 100 Hz with its dynamic filter disabled
+  (`FFST=0`, `RATE=100`, `DP=6` set by the app at connect) so the readout tracks
+  fast changes. All samples are logged. Same failure stop as mode 2.
+  (Note: the standard DSCUSB hardware tops out at 100 Hz; the DSCUSB-FQ variant
+  does 4800 Hz if you ever need more.)
 - **4 — constant path**: fixed min/max extent; the load decline over time is
   logged. Same failure stop.
 

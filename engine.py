@@ -54,6 +54,7 @@ class CycleEngine:
         self._fail_prev_peak = None
         self._run_peak = 0.0
         self._logged_peak = None
+        self._extent = None
 
     def snapshot(self):
         with self._lock:
@@ -145,6 +146,7 @@ class CycleEngine:
             self._fail_prev_peak = None
             self._run_peak = 0.0
             self._logged_peak = None
+            self._extent = None
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -281,7 +283,10 @@ class CycleEngine:
                 self._cycle_peak = 0.0
                 if can_move:
                     if cfg["mode"] == "2b":
-                        self._extend_until_load(cfg["load_goal_kg"], cfg, cap_mm=STROKE_MM)
+                        if self._extent is None:
+                            self._extent = cfg["min_mm"] + 1.0
+                        limiter = cfg["load_goal_kg"] * 1.15
+                        self._extend_until_load(limiter, cfg, cap_mm=self._extent)
                     else:
                         if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
                             if self._stop_evt.is_set() or self._fail_evt.is_set():
@@ -314,6 +319,19 @@ class CycleEngine:
                 if current >= target:
                     done = True
                     break
+                if cfg["mode"] == "2b" and can_move:
+                    goal = cfg["load_goal_kg"]
+                    peak = self._cycle_peak
+                    if peak < goal:
+                        self._extent = min(STROKE_MM, self._extent + 1.0)
+                        note = f"cycle peak {peak:.3f} kg below goal {goal}: extent -> {self._extent:.1f} mm"
+                    elif peak > goal * 1.05:
+                        self._extent = max(cfg["min_mm"] + 0.5, self._extent - 0.5)
+                        note = f"cycle peak {peak:.3f} kg above goal: extent -> {self._extent:.1f} mm"
+                    else:
+                        note = f"cycle peak {peak:.3f} kg at goal {goal}; extent held at {self._extent:.1f} mm"
+                    if self.recorder is not None:
+                        self.recorder.event(note, current, round(self.actuator.position_mm, 3), round(peak, 4))
                 dwell = cfg["dwell"] if can_move else max(cfg["dwell"], 1.0)
                 if not self._sleep(dwell):
                     break
