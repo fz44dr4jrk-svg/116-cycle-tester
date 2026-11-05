@@ -53,6 +53,7 @@ class CycleEngine:
         self._prev_peak = None
         self._fail_prev_peak = None
         self._run_peak = 0.0
+        self._logged_peak = None
 
     def snapshot(self):
         with self._lock:
@@ -143,6 +144,7 @@ class CycleEngine:
             self._prev_peak = None
             self._fail_prev_peak = None
             self._run_peak = 0.0
+            self._logged_peak = None
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -202,6 +204,9 @@ class CycleEngine:
                     with self._lock:
                         current = self.count
                     self.recorder.sample(now, current, self.actuator.position_mm, load)
+                    if self._logged_peak is None or load > self._logged_peak + 0.01:
+                        self._logged_peak = load
+                        self.recorder.peak(now, current, self.actuator.position_mm, load)
             time.sleep(0.05)
 
     def _check_cycle_peak(self):
@@ -302,7 +307,7 @@ class CycleEngine:
                     target = self.config["target"]
                 if self.recorder is not None:
                     self.recorder.event(
-                        f"cycle {current} complete",
+                        f"cycle {current} complete (cycle peak {self._cycle_peak:.3f} kg)",
                         current,
                         round(self.actuator.position_mm, 3) if can_move else "",
                         round(self._load() or 0.0, 4) if self._load() is not None else "",
@@ -347,6 +352,7 @@ class CycleEngine:
                     final_count,
                     round(self.actuator.position_mm, 3),
                     round(self._load() or 0.0, 4),
+                    run_peak=self._run_peak,
                 )
             try:
                 if can_move:

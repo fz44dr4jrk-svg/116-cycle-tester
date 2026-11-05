@@ -4,7 +4,7 @@ from pathlib import Path
 
 MAX_ROWS = 1000000
 FLUSH_EVERY = 500
-SAMPLE_DT = 0.2
+SAMPLE_DT = 1.0
 
 
 class Recorder:
@@ -69,6 +69,18 @@ class Recorder:
             "",
         ])
 
+    def peak(self, t, cycle, pos, load):
+        if self.ws is None:
+            return
+        self._append([
+            datetime.now().isoformat(timespec="milliseconds"),
+            round(t - self._t0, 3),
+            cycle,
+            round(pos, 3),
+            round(load, 4),
+            "PEAK",
+        ])
+
     def event(self, text, cycle=0, pos="", load=""):
         if self.ws is None:
             return
@@ -99,9 +111,11 @@ class Recorder:
         self.ws.append(["timestamp", "elapsed_s", "cycle", "position_mm", "load_kg", "event"])
         self._rows = 1
 
-    def finish(self, reason, cycle=0, pos="", load=""):
+    def finish(self, reason, cycle=0, pos="", load="", run_peak=None):
         if self.ws is None:
             return None
+        if run_peak is not None:
+            self.event(f"run peak {run_peak:.4f} kg", cycle, pos, run_peak)
         self.event(f"run finished: {reason}", cycle, pos, load)
         self._save()
         path = self.path

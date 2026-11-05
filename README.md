@@ -145,9 +145,12 @@ The load panel also shows a **PEAK** readout (far right) and the chart's time
 are selectable; the server decimates the samples accordingly.
 
 Logging: each run writes `cyclelog_<timestamp>.xlsx` (opens in Excel; columns
-timestamp, elapsed_s, cycle, position_mm, load_kg, event; samples ~5 Hz plus
-cycle events; rotates past 1M rows) in the EXE folder, plus `Failure.log` on
-failure. All files land next to `L16CycleTester.exe` — copy them off via USB.
+timestamp, elapsed_s, cycle, position_mm, load_kg, event). Normal samples are
+logged at 1 Hz to keep the file small, but **every new peak is always logged as
+its own `PEAK` row**, each cycle event includes that cycle's peak, and the run's
+final peak is written at the end — so the important peaks are never lost. The
+file rotates past 1M rows. `Failure.log` is written on failure. All files land
+next to `L16CycleTester.exe` — copy them off via USB.
 
 ## Demo
 
