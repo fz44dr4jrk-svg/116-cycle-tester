@@ -105,7 +105,7 @@ class SimulatedActuator(ActuatorBase):
 
 
 class PhidgetActuator(ActuatorBase):
-    def __init__(self, channel=0, attach_timeout_ms=8000):
+    def __init__(self, channel=0, attach_timeout_ms=5000):
         self.channel = channel
         self.attach_timeout_ms = attach_timeout_ms
         self._dev = None
@@ -119,6 +119,7 @@ class PhidgetActuator(ActuatorBase):
 
     def open(self):
         self.error = None
+        dev = None
         try:
             try:
                 from Phidget22.Devices.AdvancedServo import AdvancedServo as ServoCls
@@ -127,14 +128,42 @@ class PhidgetActuator(ActuatorBase):
             dev = ServoCls()
             dev.setChannel(self.channel)
             dev.openWaitForAttachment(self.attach_timeout_ms)
+            self._dev = dev
+            dev.setEngaged(True)
+            try:
+                self._pos_min = float(dev.getMinPosition())
+                self._pos_max = float(dev.getMaxPosition())
+            except Exception:
+                pass
+            try:
+                self._vel_min = float(dev.getMinVelocityLimit())
+                self._vel_max = float(dev.getMaxVelocityLimit())
+            except Exception:
+                pass
+            try:
+                dev.setOnTargetPositionReachedHandler(self._on_reached)
+            except Exception:
+                pass
+            self.connected = True
+            self.name = f"PhidgetAdvancedServo 8-Motor RCC0004_0, channel {self.channel}"
+            try:
+                self.name += f", serial {dev.getSerialNumber()}"
+            except Exception:
+                pass
         except Exception as exc:
+            if dev is not None:
+                try:
+                    dev.close()
+                except Exception:
+                    pass
+            self._dev = None
             self.connected = False
             detail = f"{type(exc).__name__}: {exc}"
             if "in use by" in str(exc):
                 detail += (
-                    " | The controller is already open in ANOTHER program - typically a"
-                    " second running copy of L16CycleTester or the Phidget Control Panel."
-                    " Close that program, then press RECONNECT here."
+                    " | The controller is already open in another program (a second copy"
+                    " of L16CycleTester, the Phidget Control Panel, or MAX). Close that"
+                    " program, then press RECONNECT here."
                 )
             self.error = (
                 f"RCC0004 not usable on USB channel {self.channel} ({detail}). "
@@ -142,28 +171,6 @@ class PhidgetActuator(ActuatorBase):
                 "(correct polarity), Windows driver. Details in l16-cycle-tester.log."
             )
             raise RuntimeError(self.error) from exc
-        self._dev = dev
-        dev.setEngaged(True)
-        try:
-            self._pos_min = float(dev.getMinPosition())
-            self._pos_max = float(dev.getMaxPosition())
-        except Exception:
-            pass
-        try:
-            self._vel_min = float(dev.getMinVelocityLimit())
-            self._vel_max = float(dev.getMaxVelocityLimit())
-        except Exception:
-            pass
-        try:
-            dev.setOnTargetPositionReachedHandler(self._on_reached)
-        except Exception:
-            pass
-        self.connected = True
-        self.name = f"PhidgetAdvancedServo 8-Motor RCC0004_0, channel {self.channel}"
-        try:
-            self.name += f", serial {dev.getSerialNumber()}"
-        except Exception:
-            pass
 
     def _on_reached(self, e):
         self._reached.set()

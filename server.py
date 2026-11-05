@@ -251,6 +251,7 @@ def main():
         log(f"controller opened: {actuator.name}")
     except Exception as exc:
         actuator.connected = False
+        actuator.close()
         if actuator.error is None:
             actuator.error = f"{type(exc).__name__}: {exc}"
         log(f"could not open Phidget controller: {actuator.error}")
