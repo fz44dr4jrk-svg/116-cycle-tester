@@ -5,6 +5,8 @@ import time
 STROKE_MM = 50.0
 VOLTAGES = (5.0, 6.0, 7.4)
 SIM_MAX_MM_PER_S = 60.0
+PULSE_MIN_US = 1000.0
+PULSE_MAX_US = 2000.0
 
 
 class ActuatorBase:
@@ -141,6 +143,17 @@ class PhidgetActuator(ActuatorBase):
             try:
                 self._vel_min = float(dev.getMinVelocityLimit())
                 self._vel_max = float(dev.getMaxVelocityLimit())
+            except Exception:
+                pass
+            try:
+                lo = float(dev.getMinPulseWidthLimit())
+                hi = float(dev.getMaxPulseWidthLimit())
+                dev.setMinPulseWidth(min(max(PULSE_MIN_US, lo), hi))
+                dev.setMaxPulseWidth(min(max(PULSE_MAX_US, lo), hi))
+            except Exception:
+                pass
+            try:
+                dev.setSpeedRampingState(True)
             except Exception:
                 pass
             dev.setTargetPosition(self._pos_min)

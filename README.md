@@ -11,7 +11,10 @@ fully offline, deployable from a USB key.
   (`RCServoVoltage`), applied globally to all servo outputs. Use **6.0 V** for the
   L16-...-6-R. Only use 7.4 V with a 7.4 V-rated actuator.
 - **Speed slider** (1–100 %) — mapped onto the controller's velocity limit.
-- **Pause between cycles slider** (0–60 s).
+- **Pause between cycles slider: 0–10 s in 0.5 s steps** (sticky detents).
+- Every slider has a **numeric input box** for keyboard entry, synced both ways;
+  sliders snap (stick) to their step — 1 mm for the extent sliders, 5,000 for the
+  cycle target, 0.5 s for the pause.
 - **Extent min / max sliders** in **1 mm increments** over the 50 mm stroke
   (min 0–49 mm, max 1–50 mm).
 - **Number of cycles slider: 10,000–400,000 in 5,000 steps.**
@@ -122,9 +125,12 @@ tools/capture_demo.py             regenerates demo/ screenshots
 
 ## Calibration notes
 
-Position mapping assumes the controller's full pulse range equals the full 50 mm
-stroke (`STROKE_MM` in `actuator.py`/`engine.py`, position range is read from the
-device at connect). If your endpoints do not line up, adjust `MinPulseWidth` /
-`MaxPulseWidth` on the channel (Phidget Control Panel) or the constants in the code.
-The RCC0004 reports commanded position (no feedback input); the L16-R feedback wire
-can be wired to a Phidget analog input later for true closed-loop verification.
+At connect, the app sets the RCC0004 pulse window to **1000–2000 µs**
+(`PULSE_MIN_US` / `PULSE_MAX_US` in `actuator.py`) — the L16-R maps its full 50 mm
+stroke onto the standard RC 1–2 ms pulse range — and enables speed ramping. The
+mm → servo-position mapping then spans `MinPosition`–`MaxPosition` (read from the
+device) over the 50 mm stroke (`STROKE_MM`). If your measured endpoints still do
+not line up (e.g. 0 mm reads a few mm off), fine-tune `PULSE_MIN_US` /
+`PULSE_MAX_US` in `actuator.py` to your unit's actual range and rebuild.
+The RCC0004 reports commanded position (no feedback input); the L16-R feedback
+wire can be wired to a Phidget analog input later for true closed-loop verification.

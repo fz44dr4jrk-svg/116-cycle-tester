@@ -31,23 +31,38 @@
     <h2>Settings</h2>
     <div class="slider-row">
       <label for="speed">Speed <output id="speed-out"></output></label>
-      <input type="range" id="speed" min="1" max="100" step="1" value="50">
+      <div class="control-line">
+        <input type="range" id="speed" min="1" max="100" step="1" value="50">
+        <input type="number" id="speed-num" min="1" max="100" step="1" value="50">
+      </div>
     </div>
     <div class="slider-row">
       <label for="dwell">Pause between cycles <output id="dwell-out"></output></label>
-      <input type="range" id="dwell" min="0" max="60" step="0.5" value="2">
+      <div class="control-line">
+        <input type="range" id="dwell" min="0" max="10" step="0.5" value="2">
+        <input type="number" id="dwell-num" min="0" max="10" step="0.5" value="2">
+      </div>
     </div>
     <div class="slider-row">
       <label for="min">Extent min <output id="min-out"></output></label>
-      <input type="range" id="min" min="0" max="49" step="1" value="0">
+      <div class="control-line">
+        <input type="range" id="min" min="0" max="49" step="1" value="0">
+        <input type="number" id="min-num" min="0" max="49" step="1" value="0">
+      </div>
     </div>
     <div class="slider-row">
       <label for="max">Extent max <output id="max-out"></output></label>
-      <input type="range" id="max" min="1" max="50" step="1" value="50">
+      <div class="control-line">
+        <input type="range" id="max" min="1" max="50" step="1" value="50">
+        <input type="number" id="max-num" min="1" max="50" step="1" value="50">
+      </div>
     </div>
     <div class="slider-row">
       <label for="cycles">Number of cycles <output id="cycles-out"></output></label>
-      <input type="range" id="cycles" min="0" max="78" step="1" value="0">
+      <div class="control-line">
+        <input type="range" id="cycles" min="0" max="78" step="1" value="0">
+        <input type="number" id="cycles-num" min="10000" max="400000" step="5000" value="10000">
+      </div>
     </div>
     <div id="settings-hint" class="hint">Settings apply when the tester is stopped.</div>
   </section>

@@ -4,6 +4,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 let state = null;
 let limits = null;
 let gaugeBuilt = false;
+let limitsApplied = false;
 
 const fmtInt = (n) => Math.round(n).toLocaleString("en-US");
 
@@ -12,6 +13,12 @@ function cyclesIndex(value) {
 }
 function cyclesValue(index) {
   return limits.cycles[0] + index * limits.cycles[2];
+}
+function snap(v, min, step) {
+  return min + Math.round((v - min) / step) * step;
+}
+function clamp(v, lo, hi) {
+  return Math.min(hi, Math.max(lo, v));
 }
 
 async function api(path, body) {
@@ -30,6 +37,7 @@ async function poll() {
     if (r.ok) {
       state = r.state;
       limits = state.limits;
+      if (!limitsApplied) applyLimits();
       render();
     }
   } catch (e) {
@@ -48,6 +56,22 @@ function showError(msg) {
   }
 }
 
+function applyLimits() {
+  limitsApplied = true;
+  const setRange = (id, lo, hi, step) => {
+    for (const suffix of ["", "-num"]) {
+      const el = $(id + suffix);
+      el.min = lo; el.max = hi; el.step = step;
+    }
+  };
+  setRange("speed", limits.speed[0], limits.speed[1], 1);
+  setRange("dwell", limits.dwell[0], limits.dwell[1], 0.5);
+  setRange("min", 0, limits.stroke_mm - 1, 1);
+  setRange("max", 1, limits.stroke_mm, 1);
+  $("cycles").max = (limits.cycles[1] - limits.cycles[0]) / limits.cycles[2];
+  setRange("cycles-num", limits.cycles[0], limits.cycles[1], limits.cycles[2]);
+}
+
 function readControls() {
   const active = document.querySelector(".volt-btn.active");
   return {
@@ -63,7 +87,74 @@ function readControls() {
 async function pushConfig() {
   const r = await api("/api/config", { config: readControls() });
   if (!r.ok) showError(r.error);
-  else showError(state && state.error ? state.error : null);
+}
+
+function updateOutput(id, text) {
+  $(id + "-out").textContent = text;
+}
+
+function wireControls() {
+  const fmts = {
+    speed: (v) => v + " %",
+    dwell: (v) => v + " s",
+    min: (v) => v + " mm",
+    max: (v) => v + " mm",
+    cycles: (v) => fmtInt(v),
+  };
+  const steps = { speed: 1, dwell: 0.5, min: 1, max: 1, cycles: null };
+  for (const id of ["speed", "dwell", "min", "max", "cycles"]) {
+    const el = $(id);
+    el.addEventListener("input", () => {
+      const step = id === "cycles" ? 1 : steps[id];
+      const v = snap(parseFloat(el.value), parseFloat(el.min), step);
+      el.value = v;
+      if (id === "cycles") $(id + "-num").value = cyclesValue(v);
+      else $(id + "-num").value = v;
+      updateOutput(id, fmts[id](id === "cycles" ? cyclesValue(v) : v));
+    });
+    el.addEventListener("change", pushConfig);
+    $(id + "-num").addEventListener("change", () => {
+      const num = $(id + "-num");
+      let v = parseFloat(num.value);
+      if (isNaN(v)) v = parseFloat(num.min);
+      v = clamp(v, parseFloat(num.min), parseFloat(num.max));
+      if (id === "cycles") {
+        v = snap(v, limits.cycles[0], limits.cycles[2]);
+        num.value = v;
+        el.value = cyclesIndex(v);
+        updateOutput(id, fmts[id](v));
+      } else {
+        v = snap(v, parseFloat(num.min), steps[id]);
+        num.value = v;
+        el.value = v;
+        updateOutput(id, fmts[id](v));
+      }
+      pushConfig();
+    });
+  }
+  document.querySelectorAll(".volt-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll(".volt-btn").forEach((x) => x.classList.remove("active"));
+      b.classList.add("active");
+      pushConfig();
+    });
+  });
+  $("btn-start").addEventListener("click", async () => {
+    const r = await api("/api/start", {});
+    if (!r.ok) showError(r.error);
+  });
+  $("btn-stop").addEventListener("click", async () => {
+    const r = await api("/api/stop", {});
+    if (!r.ok) showError(r.error);
+  });
+  $("btn-reset").addEventListener("click", async () => {
+    const r = await api("/api/reset", {});
+    if (!r.ok) showError(r.error);
+  });
+  $("btn-reconnect").addEventListener("click", async () => {
+    const r = await api("/api/reconnect", {});
+    if (!r.ok) showError(r.error);
+  });
 }
 
 function yForMm(mm) {
@@ -161,22 +252,33 @@ function render() {
   }
 
   const activeEl = document.activeElement;
-  const controls = ["speed", "dwell", "min", "max", "cycles"];
+  const ids = ["speed", "dwell", "min", "max", "cycles"];
   if (!running) {
-    for (const id of controls) {
+    for (const id of ids) {
       const el = $(id);
-      if (activeEl !== el) {
-        if (id === "cycles") el.value = String(cyclesIndex(c.target));
-        else el.value = String(c[id === "min" ? "min_mm" : id === "max" ? "max_mm" : id]);
+      const num = $(id + "-num");
+      if (activeEl !== el && activeEl !== num) {
+        if (id === "cycles") {
+          el.value = String(cyclesIndex(c.target));
+          num.value = c.target;
+        } else {
+          const key = id === "min" ? "min_mm" : id === "max" ? "max_mm" : id;
+          el.value = String(c[key]);
+          num.value = c[key];
+        }
       }
       el.disabled = false;
+      num.disabled = false;
     }
     document.querySelectorAll(".volt-btn").forEach((b) => {
       b.disabled = false;
       b.classList.toggle("active", parseFloat(b.dataset.v) === s.voltage);
     });
   } else {
-    for (const id of controls) $(id).disabled = true;
+    for (const id of ids) {
+      $(id).disabled = true;
+      $(id + "-num").disabled = true;
+    }
     document.querySelectorAll(".volt-btn").forEach((b) => (b.disabled = true));
   }
 
@@ -201,31 +303,5 @@ function render() {
   $("btn-stop").disabled = !running;
 }
 
-for (const id of ["speed", "dwell", "min", "max", "cycles"]) {
-  $(id).addEventListener("change", pushConfig);
-}
-document.querySelectorAll(".volt-btn").forEach((b) => {
-  b.addEventListener("click", () => {
-    document.querySelectorAll(".volt-btn").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-    pushConfig();
-  });
-});
-$("btn-start").addEventListener("click", async () => {
-  const r = await api("/api/start", {});
-  if (!r.ok) showError(r.error);
-});
-$("btn-stop").addEventListener("click", async () => {
-  const r = await api("/api/stop", {});
-  if (!r.ok) showError(r.error);
-});
-$("btn-reset").addEventListener("click", async () => {
-  const r = await api("/api/reset", {});
-  if (!r.ok) showError(r.error);
-});
-$("btn-reconnect").addEventListener("click", async () => {
-  const r = await api("/api/reconnect", {});
-  if (!r.ok) showError(r.error);
-});
-
+wireControls();
 poll();
