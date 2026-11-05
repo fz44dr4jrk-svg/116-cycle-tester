@@ -16,8 +16,16 @@ from engine import (
     CYCLES_STEP,
     DWELL_MAX_S,
     DWELL_MIN_S,
+    FAIL_DROP_MAX_PCT,
+    FAIL_DROP_MIN_PCT,
+    GOAL_MAX_KG,
+    GOAL_MIN_KG,
+    GOAL_STEP_KG,
+    MODES,
     CycleEngine,
 )
+from loadcell import make_loadcell
+from recorder import Recorder
 
 BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 STATIC_DIR = BASE_DIR / "static"
@@ -81,10 +89,12 @@ def acquire_single_instance():
 
 
 class App:
-    def __init__(self, actuator, demo):
+    def __init__(self, actuator, loadcell, demo):
         self.actuator = actuator
+        self.loadcell = loadcell
         self.demo = demo
-        self.engine = CycleEngine(actuator)
+        self.engine = CycleEngine(actuator, loadcell)
+        self.recorder = None
         self._reconnect_lock = threading.Lock()
         self.server = None
         self.load_settings()
@@ -146,7 +156,19 @@ class App:
             "dwell": [DWELL_MIN_S, DWELL_MAX_S],
             "cycles": [CYCLES_MIN, CYCLES_MAX, CYCLES_STEP],
             "voltages": list(VOLTAGES),
+            "modes": list(MODES),
+            "goal_kg": [GOAL_MIN_KG, GOAL_MAX_KG, GOAL_STEP_KG],
+            "fail_drop_pct": [FAIL_DROP_MIN_PCT, FAIL_DROP_MAX_PCT],
         }
+        lc = self.loadcell
+        snap["load"] = {
+            "connected": lc.connected,
+            "error": lc.error,
+            "name": lc.name,
+            "kg": round(lc.latest_kg(), 3) if lc.connected else None,
+            "history": lc.history(300) if lc.connected else [],
+        }
+        snap["run_file"] = self.recorder.file_name if self.recorder is not None and self.recorder.active else None
         return snap
 
 
@@ -209,6 +231,9 @@ def make_handler(app):
                         raise RuntimeError(
                             "controller not connected - check USB and external power, or run with --demo"
                         )
+                    if app.engine.status != "running":
+                        app.recorder = Recorder(APP_DIR)
+                        app.engine.recorder = app.recorder
                     ok = app.engine.start()
                     self._json(200, {"ok": ok, "state": app.state()})
                 elif path == "/api/stop":
@@ -216,6 +241,11 @@ def make_handler(app):
                     self._json(200, {"ok": True, "state": app.state()})
                 elif path == "/api/reset":
                     app.engine.reset()
+                    self._json(200, {"ok": True, "state": app.state()})
+                elif path == "/api/tare":
+                    if not app.loadcell.connected:
+                        raise RuntimeError("load cell not connected")
+                    app.loadcell.tare()
                     self._json(200, {"ok": True, "state": app.state()})
                 elif path == "/api/reconnect":
                     app.reconnect()
@@ -234,6 +264,15 @@ def make_handler(app):
                             app.actuator.close()
                         except Exception:
                             pass
+                        try:
+                            app.loadcell.close()
+                        except Exception:
+                            pass
+                        if app.recorder is not None:
+                            try:
+                                app.recorder.finish("app quit")
+                            except Exception:
+                                pass
                         try:
                             app.server.shutdown()
                         except Exception:
@@ -255,6 +294,7 @@ def main():
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--channel", type=int, default=0, help="RCC0004 servo channel (0-7)")
+    parser.add_argument("--loadcell-port", default=None, help="COM port of the DSCUSB (default: auto-detect)")
     parser.add_argument("--no-browser", action="store_true", help="do not open a browser window")
     args = parser.parse_args()
 
@@ -287,7 +327,16 @@ def main():
             actuator.error = f"{type(exc).__name__}: {exc}"
         log(f"could not open Phidget controller: {actuator.error}")
 
-    app = App(actuator, args.demo)
+    loadcell = make_loadcell(args.demo, port=args.loadcell_port, position_provider=lambda: actuator.position_mm)
+    try:
+        loadcell.open()
+        log(f"load cell opened: {loadcell.name}")
+    except Exception as exc:
+        loadcell.connected = False
+        loadcell.error = f"{type(exc).__name__}: {exc}"
+        log(f"could not open load cell: {loadcell.error}")
+
+    app = App(actuator, loadcell, args.demo)
     stop_watcher = threading.Event()
 
     def watch_controller():
@@ -295,6 +344,12 @@ def main():
             if not args.demo and not actuator.connected:
                 try:
                     app.reconnect()
+                except Exception:
+                    pass
+            if not args.demo and not loadcell.connected:
+                try:
+                    loadcell.open()
+                    log(f"load cell opened: {loadcell.name}")
                 except Exception:
                     pass
             stop_watcher.wait(5.0)
@@ -307,7 +362,8 @@ def main():
     url = f"http://{args.host}:{args.port}/"
     log(
         f"dashboard at {url} (demo={args.demo}, device={actuator.name}, "
-        f"connected={actuator.connected}) - log file: {LOG_FILE}"
+        f"connected={actuator.connected}, loadcell={loadcell.name}, "
+        f"loadcell_connected={loadcell.connected}) - log file: {LOG_FILE}"
     )
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
@@ -319,6 +375,9 @@ def main():
         stop_watcher.set()
         app.engine.shutdown()
         actuator.close()
+        loadcell.close()
+        if app.recorder is not None:
+            app.recorder.finish("app quit")
         server.server_close()
 
 

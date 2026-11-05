@@ -102,6 +102,43 @@ MAX / the Phidget Control Panel can use it again.
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
+## Load cell (Applied Measurements DBBSMM-50KG + DSCUSB)
+
+The right half of the dashboard is the load-cell panel: live value in kg
+(0.000 kg), a scrolling bar chart (X = time, last 10 s), a **TARE / NET**
+button (software tare: current reading becomes 0.000 kg), and the **control
+mode** selector.
+
+Hardware: DBBSMM-50KG into the DSCUSB 9-way D socket, DSCUSB micro-USB to the
+tablet. Install the DSC Toolkit / FTDI drivers (SW-DSCUSBDRV) once so the
+DSCUSB appears as a **virtual COM port (115200 8N1)**; calibrate the module to
+kg in the Toolkit (auto or table calibration). The app talks the MantraASCII
+protocol directly over the COM port — read command `!001:SYS?<CR>` returns the
+main output (kg) as `123.456<CR>`; NAK is `?<CR>`. The port is auto-detected, or
+pass `--loadcell-port COMx`.
+
+Control modes:
+
+- **1 — independent**: actuator cycles between position min/max as before; the
+  load cell is only displayed/logged.
+- **2A — failure mode**: each cycle's peak load is compared with the previous
+  cycle's peak; if it drops by more than the **user-defined failure drop
+  (10–50%, default 30%)**, the actuator stops, the cycle count and all data are
+  written to `Failure.log`, and the run file is saved. (The load naturally falls
+  to ~0 while retracting between cycles — that is not a failure; only the
+  per-cycle peak-to-peak drop is evaluated.)
+- **2B — constant load**: set a **load goal 0.1–6.0 kg** (0.2 kg steps). The
+  actuator extends from the start point in 0.2 kg load steps up to the goal,
+  then keeps cycling, increasing the extension as needed to hold the goal as the
+  material weakens. All samples are logged. Same failure stop as 2A.
+- **3 — constant path**: fixed min/max extent; the load decline over time is
+  logged. Same failure stop.
+
+Logging: each run writes `cyclelog_<timestamp>.xlsx` (opens in Excel; columns
+timestamp, elapsed_s, cycle, position_mm, load_kg, event; samples ~5 Hz plus
+cycle events; rotates past 1M rows) in the EXE folder, plus `Failure.log` on
+failure. All files land next to `L16CycleTester.exe` — copy them off via USB.
+
 ## Demo
 
 `python server.py --demo` (or `run_demo.bat`) runs the full dashboard against a

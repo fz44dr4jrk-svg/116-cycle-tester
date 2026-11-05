@@ -83,9 +83,38 @@
     <div id="settings-hint" class="hint">Settings apply when the tester is stopped.</div>
   </section>
 
-  <section class="panel reserved-panel">
-    <h2>Reserved</h2>
-    <div class="reserved-note">The right half of the screen is reserved for future functions.</div>
+  <section class="panel load-panel">
+    <h2>Load cell</h2>
+    <div class="load-top">
+      <div id="load-pill" class="pill">connecting&hellip;</div>
+      <button type="button" id="btn-tare" class="reconnect-btn">TARE / NET</button>
+    </div>
+    <div class="load-value"><span id="load-kg">0.000</span><span class="unit"> kg</span></div>
+    <canvas id="load-chart" width="600" height="190"></canvas>
+    <div class="slider-row">
+      <label for="mode">Control mode</label>
+      <select id="mode" class="mode-select">
+        <option value="1">1 — actuator &amp; load cell independent</option>
+        <option value="2a">2A — failure stop on &gt;30% load drop from peak</option>
+        <option value="2b">2B — constant load (ramp in 0.2 kg steps to goal)</option>
+        <option value="3">3 — constant path, log load decline</option>
+      </select>
+    </div>
+    <div class="slider-row" id="goal-row" hidden>
+      <label for="goal">Load goal <output id="goal-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="goal" min="0.1" max="6" step="0.2" value="4">
+        <input type="number" id="goal-num" min="0.1" max="6" step="0.2" value="4">
+      </div>
+    </div>
+    <div class="slider-row" id="faildrop-row" hidden>
+      <label for="faildrop">Failure drop vs previous cycle peak <output id="faildrop-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="faildrop" min="10" max="50" step="1" value="30">
+        <input type="number" id="faildrop-num" min="10" max="50" step="1" value="30">
+      </div>
+    </div>
+    <div id="run-file" class="hint"></div>
   </section>
 </main>
 

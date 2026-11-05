@@ -77,6 +77,11 @@ function applyLimits() {
   $("cycles").max = (limits.cycles[1] - limits.cycles[0]) / limits.cycles[2];
   setRange("cycles-num", limits.cycles[0], limits.cycles[1], limits.cycles[2]);
   $("voltage").max = limits.voltages.length - 1;
+  setRange("goal", limits.goal_kg[0], limits.goal_kg[1], limits.goal_kg[2]);
+  $("goal-num").min = limits.goal_kg[0];
+  $("goal-num").max = limits.goal_kg[1];
+  $("goal-num").step = limits.goal_kg[2];
+  setRange("faildrop", limits.fail_drop_pct[0], limits.fail_drop_pct[1], 1);
 }
 
 function readControls() {
@@ -86,6 +91,9 @@ function readControls() {
     max_mm: parseFloat($("max").value),
     target: cyclesValue(parseInt($("cycles").value, 10)),
     voltage: limits.voltages[parseInt($("voltage").value, 10)],
+    mode: $("mode").value,
+    load_goal_kg: parseFloat($("goal").value),
+    fail_drop_pct: parseFloat($("faildrop").value),
   };
 }
 
@@ -142,6 +150,51 @@ function wireControls() {
     updateOutput("voltage", limits.voltages[parseInt(volt.value, 10)] + " V");
   });
   volt.addEventListener("change", pushConfig);
+  const goal = $("goal");
+  goal.addEventListener("input", () => {
+    const v = snap(parseFloat(goal.value), parseFloat(goal.min), 0.2);
+    goal.value = v;
+    $("goal-num").value = v;
+    updateOutput("goal", v.toFixed(1) + " kg");
+  });
+  goal.addEventListener("change", pushConfig);
+  $("goal-num").addEventListener("change", () => {
+    const num = $("goal-num");
+    let v = parseFloat(num.value);
+    if (isNaN(v)) v = parseFloat(num.min);
+    v = snap(clamp(v, parseFloat(num.min), parseFloat(num.max)), parseFloat(num.min), 0.2);
+    num.value = v;
+    goal.value = v;
+    updateOutput("goal", v.toFixed(1) + " kg");
+    pushConfig();
+  });
+  const faildrop = $("faildrop");
+  faildrop.addEventListener("input", () => {
+    const v = snap(parseFloat(faildrop.value), parseFloat(faildrop.min), 1);
+    faildrop.value = v;
+    $("faildrop-num").value = v;
+    updateOutput("faildrop", v + " %");
+  });
+  faildrop.addEventListener("change", pushConfig);
+  $("faildrop-num").addEventListener("change", () => {
+    const num = $("faildrop-num");
+    let v = parseFloat(num.value);
+    if (isNaN(v)) v = parseFloat(num.min);
+    v = snap(clamp(v, parseFloat(num.min), parseFloat(num.max)), parseFloat(num.min), 1);
+    num.value = v;
+    faildrop.value = v;
+    updateOutput("faildrop", v + " %");
+    pushConfig();
+  });
+  $("mode").addEventListener("change", () => {
+    $("goal-row").hidden = $("mode").value !== "2b";
+    $("faildrop-row").hidden = $("mode").value === "1";
+    pushConfig();
+  });
+  $("btn-tare").addEventListener("click", async () => {
+    const r = await api("/api/tare", {});
+    if (!r.ok) showError(r.error);
+  });
   $("btn-start").addEventListener("click", async () => {
     const r = await api("/api/start", {});
     if (!r.ok) showError(r.error);
@@ -280,14 +333,57 @@ function render() {
     const volt = $("voltage");
     if (activeEl !== volt) volt.value = String(voltageIndex(s.voltage));
     volt.disabled = false;
+    const modeEl = $("mode");
+    if (activeEl !== modeEl) modeEl.value = c.mode;
+    modeEl.disabled = false;
+    $("goal-row").hidden = c.mode !== "2b";
+    $("faildrop-row").hidden = c.mode === "1";
+    const goal = $("goal");
+    if (activeEl !== goal && activeEl !== $("goal-num")) {
+      goal.value = c.load_goal_kg;
+      $("goal-num").value = c.load_goal_kg;
+    }
+    goal.disabled = false;
+    $("goal-num").disabled = false;
+    const fd = $("faildrop");
+    if (activeEl !== fd && activeEl !== $("faildrop-num")) {
+      fd.value = c.fail_drop_pct;
+      $("faildrop-num").value = c.fail_drop_pct;
+    }
+    fd.disabled = false;
+    $("faildrop-num").disabled = false;
   } else {
     for (const id of ids) {
       $(id).disabled = true;
       $(id + "-num").disabled = true;
     }
     $("voltage").disabled = true;
+    $("mode").disabled = true;
+    $("goal").disabled = true;
+    $("goal-num").disabled = true;
+    $("faildrop").disabled = true;
+    $("faildrop-num").disabled = true;
   }
 
+  const load = s.load;
+  const loadPill = $("load-pill");
+  if (s.demo) {
+    loadPill.textContent = "DEMO - simulated load cell";
+    loadPill.className = "pill run";
+  } else if (load.connected) {
+    loadPill.textContent = "Load cell: " + load.name;
+    loadPill.className = "pill ok";
+  } else {
+    loadPill.textContent = "LOAD CELL NOT CONNECTED";
+    loadPill.className = "pill bad";
+  }
+  $("load-kg").textContent = load.kg !== null ? load.kg.toFixed(3) : "--";
+  $("btn-tare").disabled = !load.connected;
+  drawChart(load.history || [], c.mode === "2b" ? c.load_goal_kg : null);
+  $("run-file").textContent = s.run_file ? "Logging to " + s.run_file : "";
+
+  $("goal-out").textContent = c.load_goal_kg.toFixed(1) + " kg";
+  $("faildrop-out").textContent = c.fail_drop_pct + " %";
   $("dwell-out").textContent = c.dwell + " s";
   $("min-out").textContent = c.min_mm + " mm";
   $("max-out").textContent = c.max_mm + " mm";
@@ -307,6 +403,69 @@ function render() {
 
   $("btn-start").disabled = running || !s.device.connected;
   $("btn-stop").disabled = !running;
+}
+
+function drawChart(history, goalKg) {
+  const canvas = $("load-chart");
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#0c1118";
+  ctx.fillRect(0, 0, W, H);
+  const padL = 44, padR = 10, padT = 10, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  let maxV = 0.5;
+  if (history.length) {
+    for (const [, v] of history) maxV = Math.max(maxV, v);
+  }
+  if (goalKg) maxV = Math.max(maxV, goalKg * 1.2);
+  maxV *= 1.1;
+  ctx.strokeStyle = "#2a3648";
+  ctx.fillStyle = "#8fa1b8";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 4; i++) {
+    const v = (maxV / 4) * i;
+    const y = padT + plotH - (v / maxV) * plotH;
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(W - padR, y);
+    ctx.stroke();
+    ctx.fillText(v.toFixed(1), padL - 6, y + 4);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText("time (last 10 s) →", padL + plotW / 2, H - 6);
+  if (history.length < 2) {
+    ctx.fillStyle = "#8fa1b8";
+    ctx.textAlign = "center";
+    ctx.fillText("waiting for data…", padL + plotW / 2, padT + plotH / 2);
+    return;
+  }
+  const t0 = history[0][0];
+  const t1 = history[history.length - 1][0];
+  const span = Math.max(t1 - t0, 0.001);
+  if (goalKg) {
+    const gy = padT + plotH - (goalKg / maxV) * plotH;
+    ctx.strokeStyle = "#fbbf24";
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(padL, gy);
+    ctx.lineTo(W - padR, gy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#fbbf24";
+    ctx.textAlign = "left";
+    ctx.fillText("goal " + goalKg.toFixed(1) + " kg", padL + 4, gy - 4);
+  }
+  const n = history.length;
+  const bw = Math.max(1, plotW / n - 1);
+  ctx.fillStyle = "#38bdf8";
+  for (let i = 0; i < n; i++) {
+    const [t, v] = history[i];
+    const x = padL + ((t - t0) / span) * plotW;
+    const h = (Math.max(v, 0) / maxV) * plotH;
+    ctx.fillRect(x, padT + plotH - h, bw, h);
+  }
 }
 
 wireControls();
