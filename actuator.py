@@ -27,7 +27,7 @@ class ActuatorBase:
     def set_speed_pct(self, pct):
         raise NotImplementedError
 
-    def move_to_mm(self, mm, timeout_s=60.0):
+    def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         raise NotImplementedError
 
     @property
@@ -88,11 +88,13 @@ class SimulatedActuator(ActuatorBase):
         with self._lock:
             self._speed_pct = float(pct)
 
-    def move_to_mm(self, mm, timeout_s=60.0):
+    def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         with self._lock:
             self._target = max(0.0, min(STROKE_MM, float(mm)))
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
+            if cancel_evt is not None and cancel_evt.is_set():
+                return False
             with self._lock:
                 if abs(self._pos - self._target) < 0.05:
                     return True
@@ -226,12 +228,26 @@ class PhidgetActuator(ActuatorBase):
         velocity = self._vel_min + (pct / 100.0) * (self._vel_max - self._vel_min)
         self._dev.setVelocityLimit(velocity)
 
-    def move_to_mm(self, mm, timeout_s=60.0):
+    def move_to_mm(self, mm, timeout_s=60.0, cancel_evt=None):
         with self._lock:
             target = self._mm_to_position(mm)
         self._reached.clear()
         self._dev.setTargetPosition(target)
-        return self._reached.wait(timeout_s)
+        tol = max(0.5, 0.02 * (self._pos_max - self._pos_min))
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            if cancel_evt is not None and cancel_evt.is_set():
+                return False
+            if self._reached.is_set():
+                return True
+            try:
+                pos = float(self._dev.getPosition())
+            except Exception:
+                return True
+            if abs(pos - target) <= tol:
+                return True
+            time.sleep(0.05)
+        return False
 
     @property
     def position_mm(self):

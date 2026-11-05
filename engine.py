@@ -144,15 +144,15 @@ class CycleEngine:
             cfg = self._cfg()
             self.actuator.set_voltage(cfg["voltage"])
             self.actuator.set_speed_pct(cfg["speed"])
-            self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120)
+            self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
             while not self._stop_evt.is_set():
-                if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120):
+                if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
                     if self._stop_evt.is_set():
                         break
                     raise RuntimeError("actuator did not reach max extent in time")
                 if self._stop_evt.is_set():
                     break
-                if not self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120):
+                if not self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt):
                     if self._stop_evt.is_set():
                         break
                     raise RuntimeError("actuator did not reach min extent in time")
@@ -174,6 +174,6 @@ class CycleEngine:
                     self.status = STATUS_DONE if done else STATUS_STOPPED
             try:
                 cfg = self._cfg()
-                self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120)
+                self.actuator.move_to_mm(cfg["min_mm"], timeout_s=60)
             except Exception:
                 pass
