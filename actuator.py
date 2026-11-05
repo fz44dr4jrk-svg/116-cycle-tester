@@ -5,7 +5,7 @@ import time
 STROKE_MM = 50.0
 VOLTAGES = (5.0, 6.0, 7.4)
 SIM_MAX_MM_PER_S = 60.0
-PULSE_MIN_US = 450.0
+PULSE_MIN_US = 409.0
 PULSE_MAX_US = 2450.0
 POS_MIN = 0.0
 POS_MAX = 180.0
@@ -122,6 +122,7 @@ class PhidgetActuator(ActuatorBase):
         self._vel_min = 1.0
         self._vel_max = 250.0
         self._voltage = 6.0
+        self.applied_pulse = None
         self._reached = threading.Event()
         self._lock = threading.Lock()
 
@@ -142,8 +143,9 @@ class PhidgetActuator(ActuatorBase):
                 hi = float(dev.getMaxPulseWidthLimit())
                 dev.setMinPulseWidth(min(max(PULSE_MIN_US, lo), hi))
                 dev.setMaxPulseWidth(min(max(PULSE_MAX_US, lo), hi))
+                self.applied_pulse = (float(dev.getMinPulseWidth()), float(dev.getMaxPulseWidth()))
             except Exception:
-                pass
+                self.applied_pulse = None
             try:
                 dev.setMinPosition(POS_MIN)
                 dev.setMaxPosition(POS_MAX)

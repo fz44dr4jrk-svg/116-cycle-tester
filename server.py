@@ -260,7 +260,7 @@ def main():
         log(f"probe: {probe_phidget()}")
     try:
         actuator.open()
-        log(f"controller opened: {actuator.name}")
+        log(f"controller opened: {actuator.name} applied_pulse={getattr(actuator, 'applied_pulse', None)}")
     except Exception as exc:
         actuator.connected = False
         actuator.close()
