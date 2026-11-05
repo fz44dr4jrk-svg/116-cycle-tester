@@ -123,11 +123,15 @@ class CycleEngine:
             if self.status == STATUS_RUNNING:
                 return False
             mode = self.config["mode"]
-            if mode != "1" and (self.loadcell is None or not self.loadcell.connected):
+            can_move = self.actuator is not None and getattr(self.actuator, "connected", False)
+            has_load = self.loadcell is not None and self.loadcell.connected
+            if mode != "1" and not has_load:
                 raise RuntimeError(
                     f"mode {mode} needs the load cell - connect the DSCUSB "
                     "(or run with --demo)"
                 )
+            if not can_move and not has_load:
+                raise RuntimeError("neither the RCC0004 controller nor the load cell is connected")
             if self.count >= self.config["target"]:
                 self.count = 0
             self.error = None
@@ -251,31 +255,35 @@ class CycleEngine:
         done = False
         try:
             cfg = self._cfg()
-            self.actuator.set_voltage(cfg["voltage"])
-            self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
-            if cfg["mode"] == "2b":
+            can_move = self.actuator is not None and getattr(self.actuator, "connected", False)
+            if can_move:
+                self.actuator.set_voltage(cfg["voltage"])
+                self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
+            if cfg["mode"] == "2b" and can_move:
                 self._ramp_to_goal(cfg)
             while (
                 not self._stop_evt.is_set()
                 and not self._fail_evt.is_set()
             ):
                 self._cycle_peak = 0.0
-                if cfg["mode"] == "2b":
-                    self._extend_until_load(cfg["load_goal_kg"], cfg)
-                else:
-                    if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
-                        if self._stop_evt.is_set() or self._fail_evt.is_set():
-                            break
-                        raise RuntimeError("actuator did not reach max extent in time")
+                if can_move:
+                    if cfg["mode"] == "2b":
+                        self._extend_until_load(cfg["load_goal_kg"], cfg)
+                    else:
+                        if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
+                            if self._stop_evt.is_set() or self._fail_evt.is_set():
+                                break
+                            raise RuntimeError("actuator did not reach max extent in time")
                 if self._stop_evt.is_set() or self._fail_evt.is_set():
                     break
                 self._check_cycle_peak()
                 if self._fail_evt.is_set():
                     break
-                if not self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt):
-                    if self._stop_evt.is_set() or self._fail_evt.is_set():
-                        break
-                    raise RuntimeError("actuator did not reach min extent in time")
+                if can_move:
+                    if not self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt):
+                        if self._stop_evt.is_set() or self._fail_evt.is_set():
+                            break
+                        raise RuntimeError("actuator did not reach min extent in time")
                 with self._lock:
                     self.count += 1
                     current = self.count
@@ -284,13 +292,14 @@ class CycleEngine:
                     self.recorder.event(
                         f"cycle {current} complete",
                         current,
-                        round(self.actuator.position_mm, 3),
-                        round(self._load() or 0.0, 4),
+                        round(self.actuator.position_mm, 3) if can_move else "",
+                        round(self._load() or 0.0, 4) if self._load() is not None else "",
                     )
                 if current >= target:
                     done = True
                     break
-                if not self._sleep(cfg["dwell"]):
+                dwell = cfg["dwell"] if can_move else max(cfg["dwell"], 1.0)
+                if not self._sleep(dwell):
                     break
         except Exception as exc:
             with self._lock:
@@ -328,7 +337,8 @@ class CycleEngine:
                     round(self._load() or 0.0, 4),
                 )
             try:
-                cfg = self._cfg()
-                self.actuator.move_to_mm(cfg["min_mm"], timeout_s=60)
+                if can_move:
+                    cfg = self._cfg()
+                    self.actuator.move_to_mm(cfg["min_mm"], timeout_s=60)
             except Exception:
                 pass

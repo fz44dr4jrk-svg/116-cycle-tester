@@ -227,9 +227,13 @@ def make_handler(app):
                     app.save_settings()
                     self._json(200, {"ok": True, "state": app.state()})
                 elif path == "/api/start":
-                    if not app.actuator.connected:
+                    mode = app.engine.config["mode"]
+                    can_move = app.actuator.connected
+                    has_load = app.loadcell.connected
+                    if not can_move and not (has_load and mode == "1"):
                         raise RuntimeError(
-                            "controller not connected - check USB and external power, or run with --demo"
+                            "controller not connected (and mode 1 load-cell-only monitoring "
+                            "needs the load cell) - check USB/power, or run with --demo"
                         )
                     if app.engine.status != "running":
                         app.recorder = Recorder(APP_DIR)

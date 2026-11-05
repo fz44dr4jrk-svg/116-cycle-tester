@@ -401,7 +401,9 @@ function render() {
   if (!gaugeBuilt && limits) buildGauge();
   if (gaugeBuilt) updateGauge(c, s.position_mm);
 
-  $("btn-start").disabled = running || !s.device.connected;
+  const canMove = s.device.connected;
+  const loadOnlyOk = s.load.connected && c.mode === "1";
+  $("btn-start").disabled = running || (!canMove && !loadOnlyOk);
   $("btn-stop").disabled = !running;
 }
 
