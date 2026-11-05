@@ -134,16 +134,15 @@ tools/capture_demo.py             regenerates demo/ screenshots
 
 ## Calibration notes
 
-At connect, the app sets the RCC0004 pulse window to **950–2028 µs**
+At connect, the app sets the RCC0004 pulse window to **950–2368 µs**
 (`PULSE_MIN_US` / `PULSE_MAX_US` in `actuator.py`, clamped to the device limits;
 the applied values are written to `l16-cycle-tester.log`) and position range
-0–180, and enables speed ramping. The L16-R's full 50 mm stroke spans exactly
-950 µs (0 mm, fully retracted) to 2028 µs (50 mm, fully extended) — measured on
-the reference unit — so with the pulse window set to the actuator's own range,
-the **whole** position range maps 1:1 to 0–50 mm (the 0–180 scale itself is
-irrelevant; only the pulse width matters). The app maps mm linearly over
-`MinPosition`–`MaxPosition`. If your unit's endpoints differ, measure the pulse
-widths at 0 mm and 50 mm in the Phidget Control Panel and update the two
-constants, then rebuild.
+0–180, and enables speed ramping. Measured on the reference unit: 950 µs =
+0 mm (fully retracted), 2028 µs = 38 mm, so linear extrapolation puts 50 mm at
+≈ 2368 µs (950 + 50 × (2028−950)/38). With the pulse window set to the
+actuator's own stroke, the **whole** position range maps 1:1 to 0–50 mm (the
+0–180 scale itself is irrelevant; only the pulse width matters). If your unit's
+endpoints differ, measure the pulse widths at 0 mm and 50 mm with a ruler in the
+Phidget Control Panel and update the two constants, then rebuild.
 The RCC0004 reports commanded position (no feedback input); the L16-R feedback
 wire can be wired to a Phidget analog input later for true closed-loop verification.
