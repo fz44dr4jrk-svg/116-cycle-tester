@@ -3,9 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 EXCEL_ROW_CAP = 1048576
-SOFT_CAP = 1000000
 FLUSH_EVERY = 500
-SAMPLE_DT = 1.0
 
 
 class Recorder:
@@ -54,33 +52,6 @@ class Recorder:
         self._pending += 1
         if self._pending >= FLUSH_EVERY:
             self._save()
-
-    def sample(self, t, cycle, pos, load):
-        if self.ws is None or t - self._last_sample < SAMPLE_DT:
-            return
-        if self._rows >= SOFT_CAP:
-            return
-        self._last_sample = t
-        self._append([
-            datetime.now().isoformat(timespec="milliseconds"),
-            round(t - self._t0, 3),
-            cycle,
-            round(pos, 3),
-            round(load, 4),
-            "",
-        ])
-
-    def peak(self, t, cycle, pos, load):
-        if self.ws is None:
-            return
-        self._append([
-            datetime.now().isoformat(timespec="milliseconds"),
-            round(t - self._t0, 3),
-            cycle,
-            round(pos, 3),
-            round(load, 4),
-            "PEAK",
-        ])
 
     def event(self, text, cycle=0, pos="", load=""):
         if self.ws is None:

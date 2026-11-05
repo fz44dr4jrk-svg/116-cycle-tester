@@ -53,9 +53,10 @@ class CycleEngine:
         self._prev_peak = None
         self._fail_prev_peak = None
         self._run_peak = 0.0
-        self._logged_peak = None
         self._extent = None
         self._goal_reached = False
+        self._flat_count = 0
+        self._failure_type = None
 
     def snapshot(self):
         with self._lock:
@@ -146,9 +147,10 @@ class CycleEngine:
             self._prev_peak = None
             self._fail_prev_peak = None
             self._run_peak = 0.0
-            self._logged_peak = None
             self._extent = None
             self._goal_reached = False
+            self._flat_count = 0
+            self._failure_type = None
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -204,13 +206,6 @@ class CycleEngine:
                     self._cycle_peak = load
                 if load > self._run_peak:
                     self._run_peak = load
-                if self.recorder is not None:
-                    with self._lock:
-                        current = self.count
-                    self.recorder.sample(now, current, self.actuator.position_mm, load)
-                    if self._logged_peak is None or load > self._logged_peak + 0.01:
-                        self._logged_peak = load
-                        self.recorder.peak(now, current, self.actuator.position_mm, load)
             time.sleep(0.05)
 
     def _check_cycle_peak(self):
@@ -230,10 +225,24 @@ class CycleEngine:
             ):
                 self._fail_reason = (
                     f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
-                    f"cycle peak: {peak:.3f} kg vs {prev:.3f} kg"
+                    f"cycle peak: {peak:.3f} kg vs {prev:.3f} kg (part break)"
                 )
+                self._failure_type = "part_break"
                 self._fail_evt.set()
                 self._fail_prev_peak = prev
+            if cfg["mode"] in ("2a", "3") and prev is not None and prev > 0.2:
+                if abs(peak - prev) <= 0.01 * prev:
+                    self._flat_count += 1
+                else:
+                    self._flat_count = 0
+                if self._flat_count >= 5 and not self._fail_evt.is_set():
+                    self._fail_reason = (
+                        f"cycle load unchanged for {self._flat_count} consecutive cycles "
+                        f"({peak:.3f} kg) - actuator may be dead/stuck"
+                    )
+                    self._failure_type = "actuator_stuck"
+                    self._fail_evt.set()
+                    self._fail_prev_peak = prev
         self._prev_peak = peak
 
     def _sleep(self, seconds):
@@ -332,10 +341,10 @@ class CycleEngine:
                     target = self.config["target"]
                 if self.recorder is not None:
                     self.recorder.event(
-                        f"cycle {current} complete (cycle peak {self._cycle_peak:.3f} kg)",
+                        f"cycle {current} peak",
                         current,
                         round(self.actuator.position_mm, 3) if can_move else "",
-                        round(self._load() or 0.0, 4) if self._load() is not None else "",
+                        round(self._cycle_peak, 4),
                     )
                 if current >= target:
                     done = True
@@ -346,6 +355,13 @@ class CycleEngine:
                     if peak < goal:
                         self._extent = min(STROKE_MM, self._extent + 1.0)
                         note = f"cycle peak {peak:.3f} kg below goal {goal}: extent -> {self._extent:.1f} mm"
+                        if self._extent >= STROKE_MM and not self._fail_evt.is_set():
+                            self._fail_reason = (
+                                f"actuator at full stroke ({STROKE_MM} mm) but cycle peak "
+                                f"{peak:.3f} kg still below goal {goal} - actuator may be dead"
+                            )
+                            self._failure_type = "actuator_stuck"
+                            self._fail_evt.set()
                     elif peak > goal * 1.05:
                         self._extent = max(cfg["min_mm"] + 0.5, self._extent - 0.5)
                         note = f"cycle peak {peak:.3f} kg above goal: extent -> {self._extent:.1f} mm"
@@ -383,6 +399,7 @@ class CycleEngine:
                         "load_at_failure_kg": round(self._load() or 0.0, 4),
                         "position_mm": round(self.actuator.position_mm, 3),
                         "reason": self._fail_reason,
+                        "failure_type": self._failure_type,
                         "run_file": self.recorder.file_name,
                     })
                 self.recorder.finish(
