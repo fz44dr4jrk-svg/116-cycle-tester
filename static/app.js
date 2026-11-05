@@ -5,6 +5,8 @@ let state = null;
 let limits = null;
 let gaugeBuilt = false;
 let limitsApplied = false;
+let chartWin = 10;
+let chartPts = 300;
 
 const fmtInt = (n) => Math.round(n).toLocaleString("en-US");
 
@@ -40,7 +42,7 @@ async function api(path, body) {
 
 async function poll() {
   try {
-    const r = await api("/api/state");
+    const r = await api("/api/state?win=" + chartWin + "&pts=" + chartPts);
     if (r.ok) {
       state = r.state;
       limits = state.limits;
@@ -195,6 +197,8 @@ function wireControls() {
     const r = await api("/api/tare", {});
     if (!r.ok) showError(r.error);
   });
+  $("chart-win").addEventListener("change", () => { chartWin = parseInt($("chart-win").value, 10); });
+  $("chart-pts").addEventListener("change", () => { chartPts = parseInt($("chart-pts").value, 10); });
   $("btn-start").addEventListener("click", async () => {
     const r = await api("/api/start", {});
     if (!r.ok) showError(r.error);
@@ -365,7 +369,12 @@ function render() {
     $("faildrop-num").disabled = true;
   }
 
+  const maxLocked = c.mode === "2b";
+  $("max").disabled = running || maxLocked;
+  $("max-num").disabled = running || maxLocked;
+
   const load = s.load;
+  $("load-peak").textContent = (load.peak_kg ?? 0).toFixed(3);
   const loadPill = $("load-pill");
   if (s.demo) {
     loadPill.textContent = "DEMO - simulated load cell";
@@ -436,7 +445,8 @@ function drawChart(history, goalKg) {
     ctx.fillText(v.toFixed(1), padL - 6, y + 4);
   }
   ctx.textAlign = "center";
-  ctx.fillText("time (last 10 s) →", padL + plotW / 2, H - 6);
+  const wLabel = chartWin >= 60 ? "last " + chartWin / 60 + " min" : "last " + chartWin + " s";
+  ctx.fillText("time (" + wLabel + ") →", padL + plotW / 2, H - 6);
   if (history.length < 2) {
     ctx.fillStyle = "#8fa1b8";
     ctx.textAlign = "center";

@@ -6,7 +6,9 @@ from collections import deque
 READ_CMD = b"!001:SYS?\r"
 BAUD = 115200
 POLL_HZ = 20.0
-HIST_MAX = 600
+HIST_MAX = 36000
+WINDOW_MAX_S = 1800.0
+POINTS_MAX = 1200
 
 
 class LoadCellBase:
@@ -24,6 +26,9 @@ class LoadCellBase:
         raise NotImplementedError
 
     def history(self, max_points=300):
+        raise NotImplementedError
+
+    def history_window(self, window_s=10.0, max_points=300):
         raise NotImplementedError
 
     def tare(self):
@@ -67,8 +72,13 @@ class SimulatedLoadCell(LoadCellBase):
             return self._gross - self._tare
 
     def history(self, max_points=300):
+        return self.history_window(1800.0, max_points)
+
+    def history_window(self, window_s=10.0, max_points=300):
         with self._lock:
-            return [[t, round(v, 4)] for t, v in list(self._hist)[-max_points:]]
+            now = time.monotonic()
+            items = [(t, v) for t, v in self._hist if t >= now - min(window_s, WINDOW_MAX_S)]
+        return _decimate(items, max_points)
 
     def tare(self):
         with self._lock:
@@ -159,13 +169,29 @@ class DscUsbLoadCell(LoadCellBase):
             return self._gross - self._tare
 
     def history(self, max_points=300):
+        return self.history_window(1800.0, max_points)
+
+    def history_window(self, window_s=10.0, max_points=300):
         with self._lock:
-            return [[t, round(v, 4)] for t, v in list(self._hist)[-max_points:]]
+            now = time.monotonic()
+            items = [(t, v) for t, v in self._hist if t >= now - min(window_s, WINDOW_MAX_S)]
+        return _decimate(items, max_points)
 
     def tare(self):
         with self._lock:
             self._tare = self._gross
         return True
+
+
+def _decimate(items, max_points):
+    max_points = max(2, min(int(max_points), POINTS_MAX))
+    if len(items) > max_points:
+        step = -(-len(items) // max_points)
+        picked = items[::step]
+        if picked and picked[-1] is not items[-1]:
+            picked.append(items[-1])
+        items = picked
+    return [[t, round(v, 4)] for t, v in items]
 
 
 def make_loadcell(demo, port=None, position_provider=None):

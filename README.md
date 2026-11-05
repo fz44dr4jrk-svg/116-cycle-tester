@@ -117,22 +117,32 @@ protocol directly over the COM port — read command `!001:SYS?<CR>` returns the
 main output (kg) as `123.456<CR>`; NAK is `?<CR>`. The port is auto-detected, or
 pass `--loadcell-port COMx`.
 
-Control modes:
+Control modes (options 1–4):
 
 - **1 — independent**: actuator cycles between position min/max as before; the
-  load cell is only displayed/logged.
-- **2A — failure mode**: each cycle's peak load is compared with the previous
+  load cell is only displayed/logged. Works with **only one device connected**:
+  actuator without load cell cycles normally; load cell without actuator runs
+  as a monitor-only logging session (one "cycle" per interval). Modes 2–4
+  require the load cell and refuse to start with a clear message otherwise.
+- **2 — failure mode**: each cycle's peak load is compared with the previous
   cycle's peak; if it drops by more than the **user-defined failure drop
   (10–50%, default 30%)**, the actuator stops, the cycle count and all data are
   written to `Failure.log`, and the run file is saved. (The load naturally falls
   to ~0 while retracting between cycles — that is not a failure; only the
   per-cycle peak-to-peak drop is evaluated.)
-- **2B — constant load**: set a **load goal 0.1–6.0 kg** (0.2 kg steps). The
-  actuator extends from the start point in 0.2 kg load steps up to the goal,
-  then keeps cycling, increasing the extension as needed to hold the goal as the
-  material weakens. All samples are logged. Same failure stop as 2A.
-- **3 — constant path**: fixed min/max extent; the load decline over time is
+- **3 — constant load**: set a **load goal 0.1–6.0 kg**. Position **min** is the
+  user-set start point; position **max is greyed out** — the app decides it
+  (capped at the 50 mm stroke). On START the actuator extends in **1 mm
+  increments**, reading the actual load after each step, until the measured
+  load reaches the goal; then it keeps cycling, increasing the extension
+  automatically as the material weakens to hold the goal. All samples are
+  logged. Same failure stop as mode 2.
+- **4 — constant path**: fixed min/max extent; the load decline over time is
   logged. Same failure stop.
+
+The load panel also shows a **PEAK** readout (far right) and the chart's time
+**window** (last 10 s / 1 min / 10 min / 30 min) and **resolution** (max points)
+are selectable; the server decimates the samples accordingly.
 
 Logging: each run writes `cyclelog_<timestamp>.xlsx` (opens in Excel; columns
 timestamp, elapsed_s, cycle, position_mm, load_kg, event; samples ~5 Hz plus

@@ -52,6 +52,7 @@ class CycleEngine:
         self._cycle_peak = 0.0
         self._prev_peak = None
         self._fail_prev_peak = None
+        self._run_peak = 0.0
 
     def snapshot(self):
         with self._lock:
@@ -63,6 +64,7 @@ class CycleEngine:
                 "config": dict(self.config),
                 "position_mm": self.actuator.position_mm,
                 "voltage": self.actuator.get_voltage(),
+                "run_peak_kg": self._run_peak,
             }
 
     def set_config(self, cfg):
@@ -139,6 +141,7 @@ class CycleEngine:
             self._cycle_peak = 0.0
             self._prev_peak = None
             self._fail_prev_peak = None
+            self._run_peak = 0.0
             self._fail_evt.clear()
             self.status = STATUS_RUNNING
             self._stop_evt.clear()
@@ -187,6 +190,8 @@ class CycleEngine:
             if load is not None:
                 if load > self._cycle_peak:
                     self._cycle_peak = load
+                if load > self._run_peak:
+                    self._run_peak = load
                 if self.recorder is not None:
                     with self._lock:
                         current = self.count
@@ -217,39 +222,23 @@ class CycleEngine:
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         return not self._stop_evt.is_set() and not self._fail_evt.is_set()
 
-    def _extend_until_load(self, target_load, cfg):
+    def _extend_until_load(self, target_load, cfg, cap_mm=None):
+        cap = cap_mm if cap_mm is not None else cfg["max_mm"]
         pos = max(cfg["min_mm"], self.actuator.position_mm)
         while (
-            pos < cfg["max_mm"]
+            pos < cap
             and not self._stop_evt.is_set()
             and not self._fail_evt.is_set()
         ):
-            pos = min(cfg["max_mm"], pos + 1.0)
+            pos = min(cap, pos + 1.0)
             self.actuator.move_to_mm(pos, timeout_s=30, cancel_evt=self._stop_evt)
             load = self._load()
-            if load is not None and load >= target_load:
-                break
+            if load is not None:
+                if load > self._cycle_peak:
+                    self._cycle_peak = load
+                if load >= target_load:
+                    break
         return pos
-
-    def _ramp_to_goal(self, cfg):
-        goal = cfg["load_goal_kg"]
-        step = GOAL_STEP_KG
-        while (
-            step <= goal + 1e-9
-            and not self._stop_evt.is_set()
-            and not self._fail_evt.is_set()
-        ):
-            self._extend_until_load(step, cfg)
-            if self.recorder is not None:
-                with self._lock:
-                    current = self.count
-                self.recorder.event(
-                    f"ramp: load >= {step:.1f} kg",
-                    current,
-                    round(self.actuator.position_mm, 3),
-                    round(self._load() or 0.0, 4),
-                )
-            step += GOAL_STEP_KG
 
     def _run(self):
         done = False
@@ -259,8 +248,6 @@ class CycleEngine:
             if can_move:
                 self.actuator.set_voltage(cfg["voltage"])
                 self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
-            if cfg["mode"] == "2b" and can_move:
-                self._ramp_to_goal(cfg)
             while (
                 not self._stop_evt.is_set()
                 and not self._fail_evt.is_set()
@@ -268,12 +255,15 @@ class CycleEngine:
                 self._cycle_peak = 0.0
                 if can_move:
                     if cfg["mode"] == "2b":
-                        self._extend_until_load(cfg["load_goal_kg"], cfg)
+                        self._extend_until_load(cfg["load_goal_kg"], cfg, cap_mm=STROKE_MM)
                     else:
                         if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
                             if self._stop_evt.is_set() or self._fail_evt.is_set():
                                 break
                             raise RuntimeError("actuator did not reach max extent in time")
+                        load = self._load()
+                        if load is not None and load > self._cycle_peak:
+                            self._cycle_peak = load
                 if self._stop_evt.is_set() or self._fail_evt.is_set():
                     break
                 self._check_cycle_peak()

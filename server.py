@@ -4,6 +4,7 @@ import os
 import sys
 import threading
 import time
+import urllib.parse
 import webbrowser
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -142,7 +143,7 @@ class App:
         finally:
             self._reconnect_lock.release()
 
-    def state(self):
+    def state(self, win_s=10.0, max_points=300):
         snap = self.engine.snapshot()
         snap["demo"] = self.demo
         snap["device"] = {
@@ -161,12 +162,16 @@ class App:
             "fail_drop_pct": [FAIL_DROP_MIN_PCT, FAIL_DROP_MAX_PCT],
         }
         lc = self.loadcell
+        hist = lc.history_window(win_s, max_points) if lc.connected else []
+        hist_peak = max((v for _, v in hist), default=0.0)
+        kg_now = round(lc.latest_kg(), 3) if lc.connected else None
         snap["load"] = {
             "connected": lc.connected,
             "error": lc.error,
             "name": lc.name,
-            "kg": round(lc.latest_kg(), 3) if lc.connected else None,
-            "history": lc.history(300) if lc.connected else [],
+            "kg": kg_now,
+            "peak_kg": round(max(snap.get("run_peak_kg", 0.0), hist_peak, kg_now or 0.0), 3),
+            "history": hist,
         }
         snap["run_file"] = self.recorder.file_name if self.recorder is not None and self.recorder.active else None
         return snap
@@ -207,9 +212,18 @@ def make_handler(app):
             self.wfile.write(body)
 
         def do_GET(self):
-            path = self.path.split("?")[0]
+            path, _, query = self.path.partition("?")
             if path == "/api/state":
-                self._json(200, {"ok": True, "state": app.state()})
+                params = urllib.parse.parse_qs(query)
+                try:
+                    win = min(max(float(params.get("win", ["10"])[0]), 1.0), 1800.0)
+                except ValueError:
+                    win = 10.0
+                try:
+                    pts = min(max(int(params.get("pts", ["300"])[0]), 20), 1200)
+                except ValueError:
+                    pts = 300
+                self._json(200, {"ok": True, "state": app.state(win, pts)})
             else:
                 self._static(path)
 

@@ -88,16 +88,35 @@
     <div class="load-top">
       <div id="load-pill" class="pill">connecting&hellip;</div>
       <button type="button" id="btn-tare" class="reconnect-btn">TARE / NET</button>
+      <div class="load-peak">PEAK <span id="load-peak">0.000</span> kg</div>
     </div>
     <div class="load-value"><span id="load-kg">0.000</span><span class="unit"> kg</span></div>
+    <div class="chart-controls">
+      <label>Window
+        <select id="chart-win">
+          <option value="10" selected>last 10 s</option>
+          <option value="60">last 1 min</option>
+          <option value="600">last 10 min</option>
+          <option value="1800">last 30 min</option>
+        </select>
+      </label>
+      <label>Resolution
+        <select id="chart-pts">
+          <option value="100">100 points</option>
+          <option value="300" selected>300 points</option>
+          <option value="600">600 points</option>
+          <option value="1200">max (1200)</option>
+        </select>
+      </label>
+    </div>
     <canvas id="load-chart" width="600" height="190"></canvas>
     <div class="slider-row">
       <label for="mode">Control mode</label>
       <select id="mode" class="mode-select">
         <option value="1">1 — actuator &amp; load cell independent</option>
-        <option value="2a">2A — failure stop on &gt;30% load drop from peak</option>
-        <option value="2b">2B — constant load (ramp in 0.2 kg steps to goal)</option>
-        <option value="3">3 — constant path, log load decline</option>
+        <option value="2a">2 — failure stop on load drop vs previous cycle peak</option>
+        <option value="2b">3 — constant load (extend in 1 mm steps to goal)</option>
+        <option value="3">4 — constant path, log load decline</option>
       </select>
     </div>
     <div class="slider-row" id="goal-row" hidden>
