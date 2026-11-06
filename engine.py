@@ -65,6 +65,7 @@ class CycleEngine:
         self._peak_hist = deque(maxlen=5)
         self._collapse_count = 0
         self._on_goal_count = 0
+        self._calibrated = False
 
     def snapshot(self):
         with self._lock:
@@ -164,6 +165,7 @@ class CycleEngine:
             self._peak_hist.clear()
             self._collapse_count = 0
             self._on_goal_count = 0
+            self._calibrated = False
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -336,6 +338,54 @@ class CycleEngine:
             pos = self.actuator.position_mm
         return pos
 
+    def _calibrate(self, cfg):
+        goal = cfg["load_goal_kg"]
+        self._extent = cfg["min_mm"]
+        while not self._stop_evt.is_set() and not self._fail_evt.is_set():
+            self._extent = min(STROKE_MM, self._extent + 1.0)
+            self._cycle_peak = 0.0
+            self._cycle_maxpos = 0.0
+            if self.loadcell is not None:
+                try:
+                    self.loadcell.reset_peak()
+                except Exception:
+                    pass
+            self._extend_until_load(goal * 1.02, cfg, cap_mm=self._extent)
+            if self.loadcell is not None:
+                try:
+                    mp = self.loadcell.module_peak_kg()
+                    if mp is not None and mp > self._cycle_peak:
+                        self._cycle_peak = mp
+                except Exception:
+                    pass
+            peak = self._cycle_peak
+            if self.recorder is not None:
+                self.recorder.event(
+                    f"calibration: extent {self._extent:.1f} mm, peak {peak:.3f} kg (goal {goal})",
+                    self.count,
+                    round(self._cycle_maxpos, 3),
+                    round(peak, 4),
+                )
+            if peak >= goal:
+                self._calibrated = True
+                if self.recorder is not None:
+                    self.recorder.event(
+                        f"calibration done: target extent {self._extent:.1f} mm at peak {peak:.3f} kg - cycle counting starts",
+                        self.count,
+                        round(self._cycle_maxpos, 3),
+                        round(peak, 4),
+                    )
+                return
+            if self._extent >= STROKE_MM:
+                self._fail_reason = (
+                    f"full stroke ({STROKE_MM} mm) reached but peak {peak:.3f} kg below goal "
+                    f"{goal} - no resistance (part failed?)"
+                )
+                self._failure_type = "part_break"
+                self._fail_evt.set()
+                return
+            self.actuator.move_to_mm(cfg["min_mm"], timeout_s=60, cancel_evt=self._stop_evt)
+
     def _run(self):
         done = False
         try:
@@ -344,6 +394,8 @@ class CycleEngine:
             if can_move:
                 self.actuator.set_voltage(cfg["voltage"])
                 self.actuator.move_to_mm(cfg["min_mm"], timeout_s=120, cancel_evt=self._stop_evt)
+            if can_move and cfg["mode"] == "2b" and not self._calibrated:
+                self._calibrate(cfg)
             while (
                 not self._stop_evt.is_set()
                 and not self._fail_evt.is_set()
@@ -411,46 +463,6 @@ class CycleEngine:
                 if current >= target:
                     done = True
                     break
-                if cfg["mode"] == "2b" and can_move:
-                    goal = cfg["load_goal_kg"]
-                    peak = self._cycle_peak
-                    if peak < goal:
-                        if (
-                            (self._cycle_maxpos - cfg["min_mm"]) < 0.5
-                            and peak < goal * 0.5
-                            and not self._fail_evt.is_set()
-                        ):
-                            self._fail_reason = (
-                                f"actuator cannot extend further (max pos {self._cycle_maxpos:.1f} mm) "
-                                f"but cycle peak {peak:.3f} kg below goal {goal} - actuator may be dead "
-                                f"or the part is blocking"
-                            )
-                            self._failure_type = "actuator_stuck"
-                            self._fail_evt.set()
-                            note = "actuator stalled below goal"
-                        else:
-                            if peak >= goal * 0.7:
-                                delta = min(0.3, max(0.05, (goal - peak) * 5.0))
-                            else:
-                                delta = min(1.0, max(0.1, (goal - peak) * 3.0))
-                            self._extent = min(STROKE_MM, self._extent + delta)
-                            note = f"cycle peak {peak:.3f} kg below goal {goal}: extent +{delta:.2f} -> {self._extent:.1f} mm"
-                        if self._extent >= STROKE_MM and not self._fail_evt.is_set() and (self._cycle_maxpos - cfg["min_mm"]) >= 0.5:
-                            self._fail_reason = (
-                                f"actuator reached full stroke ({STROKE_MM} mm) but cycle peak "
-                                f"{peak:.3f} kg still below goal {goal} - no resistance: part "
-                                f"likely failed"
-                            )
-                            self._failure_type = "part_break"
-                            self._fail_evt.set()
-                    elif peak > goal * 1.05:
-                        delta = min(0.3, max(0.05, (peak - goal) * 5.0))
-                        self._extent = max(cfg["min_mm"] + 1.0, self._extent - delta)
-                        note = f"cycle peak {peak:.3f} kg above goal: extent -{delta:.2f} -> {self._extent:.1f} mm"
-                    else:
-                        note = f"cycle peak {peak:.3f} kg at goal {goal}; extent held at {self._extent:.1f} mm"
-                    if self.recorder is not None:
-                        self.recorder.event(note, current, round(self._cycle_maxpos, 3), round(peak, 4))
                 dwell = cfg["dwell"] if can_move else max(cfg["dwell"], 1.0)
                 if not self._sleep(dwell):
                     break
