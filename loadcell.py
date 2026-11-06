@@ -186,10 +186,14 @@ class DscUsbLoadCell(LoadCellBase):
 
     def _reader(self):
         tick = 0
+        failures = 0
         while not self._stop.is_set():
             try:
                 gross = self._cmd(READ_CMD)
-                if gross is not None:
+                if gross is None:
+                    failures += 1
+                else:
+                    failures = 0
                     tick += 1
                     if tick % 5 == 0:
                         peak = self._cmd(b"!001:PEAK?\r")
@@ -200,7 +204,15 @@ class DscUsbLoadCell(LoadCellBase):
                         self._gross = gross
                         self._hist.append((time.monotonic(), gross - self._tare))
             except Exception:
-                time.sleep(0.02)
+                failures += 1
+            if failures >= 20:
+                self.connected = False
+                self.error = "DSCUSB read failures - connection lost (will auto-reconnect)"
+                try:
+                    self._ser.close()
+                except Exception:
+                    pass
+                break
             time.sleep(0.005)
 
     def reset_peak(self):

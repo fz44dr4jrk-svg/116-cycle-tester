@@ -122,23 +122,22 @@ class App:
 
     def reconnect(self):
         if self.demo:
-            raise RuntimeError("demo mode uses the simulated actuator")
-        if self.actuator.connected:
-            return True
+            raise RuntimeError("demo mode uses the simulated actuator/load cell")
         if not self._reconnect_lock.acquire(blocking=False):
             return False
         try:
-            log("reconnect: trying to open Phidget controller...")
-            try:
+            if not self.actuator.connected:
+                log("reconnect: trying to open Phidget controller...")
                 self.actuator.open()
-            except Exception as exc:
-                log(f"reconnect failed: {exc}")
-                raise
-            log(f"reconnect OK: {self.actuator.name}")
-            try:
-                self.engine.apply_config()
-            except Exception as exc:
-                log(f"apply_config after reconnect failed: {exc}")
+                log(f"reconnect OK: {self.actuator.name}")
+                try:
+                    self.engine.apply_config()
+                except Exception as exc:
+                    log(f"apply_config after reconnect failed: {exc}")
+            if not self.loadcell.connected:
+                log("reconnect: trying to open load cell...")
+                self.loadcell.open()
+                log(f"reconnect OK: {self.loadcell.name}")
             return True
         finally:
             self._reconnect_lock.release()

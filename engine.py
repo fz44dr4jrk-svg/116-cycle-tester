@@ -255,7 +255,6 @@ class CycleEngine:
                     )
                 self._fail_evt.set()
                 self._fail_prev_peak = baseline
-        self._peak_hist.append(peak)
             if cfg["mode"] in ("2a", "3") and prev is not None and prev > 0.2:
                 if abs(peak - prev) <= 0.01 * prev:
                     self._flat_count += 1
@@ -269,6 +268,7 @@ class CycleEngine:
                     self._failure_type = "actuator_stuck"
                     self._fail_evt.set()
                     self._fail_prev_peak = prev
+        self._peak_hist.append(peak)
         self._prev_peak = peak
         self._prev_maxpos = self._cycle_maxpos
 
