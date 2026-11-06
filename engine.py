@@ -10,6 +10,8 @@ MODES = ("1", "2a", "2b", "3")
 GOAL_MIN_KG, GOAL_MAX_KG, GOAL_STEP_KG = 0.1, 6.0, 0.2
 FAIL_DROP_MIN_PCT, FAIL_DROP_MAX_PCT = 10.0, 50.0
 PEAK_EPS_KG = 0.1
+EQUILIBRIUM_BAND = 0.03
+EQUILIBRIUM_CYCLES = 3
 
 STATUS_IDLE = "idle"
 STATUS_RUNNING = "running"
@@ -227,11 +229,11 @@ class CycleEngine:
         peak = self._cycle_peak
         prev = self._prev_peak
         if cfg["mode"] == "2b":
-            if abs(peak - cfg["load_goal_kg"]) <= 0.1 * cfg["load_goal_kg"]:
+            if abs(peak - cfg["load_goal_kg"]) <= EQUILIBRIUM_BAND * cfg["load_goal_kg"]:
                 self._on_goal_count += 1
             else:
                 self._on_goal_count = 0
-            if self._on_goal_count >= 3:
+            if self._on_goal_count >= EQUILIBRIUM_CYCLES:
                 self._goal_reached = True
         if cfg["mode"] == "2b" and peak < cfg["load_goal_kg"] * 0.8:
             self._collapse_count += 1
