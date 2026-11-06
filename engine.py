@@ -61,6 +61,7 @@ class CycleEngine:
         self._cycle_maxpos = 0.0
         self._prev_maxpos = None
         self._peak_hist = deque(maxlen=5)
+        self._collapse_count = 0
 
     def snapshot(self):
         with self._lock:
@@ -158,6 +159,7 @@ class CycleEngine:
             self._cycle_maxpos = 0.0
             self._prev_maxpos = None
             self._peak_hist.clear()
+            self._collapse_count = 0
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -224,9 +226,15 @@ class CycleEngine:
         prev = self._prev_peak
         if cfg["mode"] == "2b" and peak >= cfg["load_goal_kg"]:
             self._goal_reached = True
+        if cfg["mode"] == "2b" and peak < cfg["load_goal_kg"] * 0.8:
+            self._collapse_count += 1
+        else:
+            self._collapse_count = 0
         if cfg["mode"] != "1":
             check_failure = not (cfg["mode"] == "2b" and not self._goal_reached)
             check_failure = check_failure and len(self._peak_hist) >= 3
+            if cfg["mode"] == "2b":
+                check_failure = check_failure and self._collapse_count >= 2
             baseline = None
             if self._peak_hist:
                 recent = list(self._peak_hist)[-3:]
@@ -424,9 +432,9 @@ class CycleEngine:
                             self._failure_type = "part_break"
                             self._fail_evt.set()
                     elif peak > goal * 1.05:
-                        delta = min(0.5, max(0.1, (peak - goal) * 3.0))
-                        self._extent = max(cfg["min_mm"] + 0.5, self._extent - delta)
-                        note = f"cycle peak {peak:.3f} kg above goal: extent -{delta:.1f} -> {self._extent:.1f} mm"
+                        delta = min(0.2, max(0.05, (peak - goal) * 2.0))
+                        self._extent = max(cfg["min_mm"] + 1.0, self._extent - delta)
+                        note = f"cycle peak {peak:.3f} kg above goal: extent -{delta:.2f} -> {self._extent:.1f} mm"
                     else:
                         note = f"cycle peak {peak:.3f} kg at goal {goal}; extent held at {self._extent:.1f} mm"
                     if self.recorder is not None:
