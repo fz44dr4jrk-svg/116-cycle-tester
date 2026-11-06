@@ -20,9 +20,13 @@ fully offline, deployable from a USB key.
   the cycle target, 0.5 s for the interval, one position for the voltage.
 - **Horizontal extent gauge** below the sliders: numbered 0–50 mm scale, live
   marker, band showing the configured min/max range, plus a numeric mm readout.
-- **START / STOP / RESET** buttons under the sliders. STOP (and automatic finish)
-  returns the actuator to the min extent. One cycle = extend to max extent,
-  retract to min extent; the interval is applied after each completed cycle.
+- **START / PAUSE / STOP / RESET** buttons under the sliders. **PAUSE** freezes
+  the cycle loop (status PAUSED, count held) while load monitoring and xlsx
+  logging continue in the background; **RESUME** continues. **STOP** ends the
+  run and keeps the count (a new START begins a fresh run at 0); RESET zeroes
+  the counter any time. STOP and automatic finish return the actuator to the
+  min extent. One cycle = extend to max extent, retract to min extent; the
+  interval is applied after each completed cycle.
 - The whole control surface occupies the **left half** of the screen; the right
   half is reserved for future functions.
 - Settings are persisted (`settings.json` next to the EXE) and restored on restart.

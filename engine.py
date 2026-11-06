@@ -1,5 +1,6 @@
 import threading
 import time
+import traceback
 from collections import deque
 
 STROKE_MM = 50.0
@@ -64,7 +65,6 @@ class CycleEngine:
         self._run_peak = 0.0
         self._extent = None
         self._goal_reached = False
-        self._flat_count = 0
         self._failure_type = None
         self._cycle_maxpos = 0.0
         self._prev_maxpos = None
@@ -72,6 +72,7 @@ class CycleEngine:
         self._collapse_count = 0
         self._on_goal_count = 0
         self._calibrated = False
+        self._stall_count = 0
 
     def snapshot(self):
         with self._lock:
@@ -163,7 +164,6 @@ class CycleEngine:
             self._run_peak = 0.0
             self._extent = None
             self._goal_reached = False
-            self._flat_count = 0
             self._failure_type = None
             self._cycle_maxpos = 0.0
             self._prev_maxpos = None
@@ -171,6 +171,7 @@ class CycleEngine:
             self._collapse_count = 0
             self._on_goal_count = 0
             self._calibrated = False
+            self._stall_count = 0
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -261,6 +262,7 @@ class CycleEngine:
         cfg = self._cfg()
         peak = self._cycle_peak
         prev = self._prev_peak
+        can_move_here = self.actuator is not None and getattr(self.actuator, "connected", False)
         if cfg["mode"] == "2b":
             if abs(peak - cfg["load_goal_kg"]) <= EQUILIBRIUM_BAND * cfg["load_goal_kg"]:
                 self._on_goal_count += 1
@@ -301,24 +303,24 @@ class CycleEngine:
                     self._failure_type = "actuator_stuck"
                     self._fail_reason = (
                         f"load dropped {peak:.3f} kg vs ~{baseline:.3f} kg and the actuator stalled "
-                        f"(max pos {self._cycle_maxpos:.1f} mm vs {self._prev_maxpos:.1f} mm) "
+                        f"(max pos {self._cycle_maxpos:.1f} mm vs {(self._prev_maxpos or 0.0):.1f} mm) "
                         f"- actuator may be dead"
                     )
                 self._fail_evt.set()
                 self._fail_prev_peak = baseline
-            if cfg["mode"] in ("2a", "3") and prev is not None and prev > 0.2:
-                if abs(peak - prev) <= 0.01 * prev:
-                    self._flat_count += 1
-                else:
-                    self._flat_count = 0
-                if self._flat_count >= 5 and not self._fail_evt.is_set():
-                    self._fail_reason = (
-                        f"cycle load unchanged for {self._flat_count} consecutive cycles "
-                        f"({peak:.3f} kg) - actuator may be dead/stuck"
-                    )
-                    self._failure_type = "actuator_stuck"
-                    self._fail_evt.set()
-                    self._fail_prev_peak = prev
+            commanded = self._extent if cfg["mode"] == "2b" else cfg["max_mm"]
+            if can_move_here and self._cycle_maxpos < commanded - 2.0:
+                self._stall_count += 1
+            else:
+                self._stall_count = 0
+            if self._stall_count >= 3 and not self._fail_evt.is_set():
+                self._fail_reason = (
+                    f"actuator stalled: reached only {self._cycle_maxpos:.1f} mm of commanded "
+                    f"{commanded:.1f} mm for {self._stall_count} consecutive cycles (load {peak:.3f} kg)"
+                )
+                self._failure_type = "actuator_stuck"
+                self._fail_evt.set()
+                self._fail_prev_peak = baseline if baseline is not None else prev
 
     def _sleep(self, seconds):
         deadline = time.monotonic() + seconds
@@ -479,6 +481,8 @@ class CycleEngine:
                             self._cycle_peak = mp
                     except Exception:
                         pass
+                if can_move:
+                    self._cycle_maxpos = max(self._cycle_maxpos, self.actuator.position_mm)
                 self._check_cycle_peak()
                 if self._fail_evt.is_set():
                     break
@@ -517,7 +521,7 @@ class CycleEngine:
                     break
         except Exception as exc:
             with self._lock:
-                self.error = str(exc)
+                self.error = f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
         finally:
             failed = self._fail_evt.is_set()
             with self._lock:
