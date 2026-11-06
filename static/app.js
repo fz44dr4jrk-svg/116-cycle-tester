@@ -207,6 +207,11 @@ function wireControls() {
     const r = await api("/api/stop", {});
     if (!r.ok) showError(r.error);
   });
+  $("btn-pause").addEventListener("click", async () => {
+    const paused = state && state.status === "paused";
+    const r = await api("/api/pause", { paused: !paused });
+    if (!r.ok) showError(r.error);
+  });
   $("btn-reset").addEventListener("click", async () => {
     const r = await api("/api/reset", {});
     if (!r.ok) showError(r.error);
@@ -412,8 +417,12 @@ function render() {
 
   const canMove = s.device.connected;
   const loadOnlyOk = s.load.connected && c.mode === "1";
-  $("btn-start").disabled = running || (!canMove && !loadOnlyOk);
-  $("btn-stop").disabled = !running;
+  const paused = s.status === "paused";
+  $("btn-start").disabled = running || paused || (!canMove && !loadOnlyOk);
+  $("btn-stop").disabled = !running && !paused;
+  const pauseBtn = $("btn-pause");
+  pauseBtn.disabled = !running && !paused;
+  pauseBtn.textContent = paused ? "RESUME" : "PAUSE";
 }
 
 function drawChart(history, goalKg) {

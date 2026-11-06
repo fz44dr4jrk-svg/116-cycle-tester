@@ -16,6 +16,7 @@ EQUILIBRIUM_CYCLES = 3
 STATUS_IDLE = "idle"
 STATUS_RUNNING = "running"
 STATUS_CALIBRATING = "calibrating"
+STATUS_PAUSED = "paused"
 STATUS_STOPPED = "stopped"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
@@ -38,6 +39,8 @@ class CycleEngine:
         self._lock = threading.Lock()
         self._stop_evt = threading.Event()
         self._fail_evt = threading.Event()
+        self._pause_evt = threading.Event()
+        self._pre_pause_status = STATUS_RUNNING
         self._fail_reason = None
         self._thread = None
         self._monitor_thread = None
@@ -176,6 +179,7 @@ class CycleEngine:
                     pass
             self.status = STATUS_RUNNING
             self._stop_evt.clear()
+            self._pause_evt.clear()
             if self.recorder is not None:
                 self.recorder.begin(self.config["mode"], dict(self.config))
             self._thread = threading.Thread(target=self._run, daemon=True)
@@ -184,8 +188,33 @@ class CycleEngine:
             self._monitor_thread.start()
             return True
 
+    def pause(self):
+        with self._lock:
+            if self.status in (STATUS_RUNNING, STATUS_CALIBRATING) and not self._pause_evt.is_set():
+                self._pre_pause_status = self.status
+                self._pause_evt.set()
+                self.status = STATUS_PAUSED
+                return True
+            return False
+
+    def resume(self):
+        with self._lock:
+            if self.status == STATUS_PAUSED and self._pause_evt.is_set():
+                self._pause_evt.clear()
+                self.status = self._pre_pause_status
+                return True
+            return False
+
+    def _wait_pause(self):
+        while self._pause_evt.is_set():
+            if self._stop_evt.is_set() or self._fail_evt.is_set():
+                return False
+            time.sleep(0.05)
+        return True
+
     def stop(self):
         self._stop_evt.set()
+        self._pause_evt.clear()
         for thread in (self._thread, self._monitor_thread):
             if thread is not None:
                 thread.join(timeout=10)
@@ -295,6 +324,8 @@ class CycleEngine:
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             if self._stop_evt.is_set() or self._fail_evt.is_set():
+                return False
+            if not self._wait_pause():
                 return False
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         return not self._stop_evt.is_set() and not self._fail_evt.is_set()
@@ -416,6 +447,8 @@ class CycleEngine:
                 not self._stop_evt.is_set()
                 and not self._fail_evt.is_set()
             ):
+                if not self._wait_pause():
+                    break
                 self._cycle_peak = 0.0
                 self._cycle_maxpos = 0.0
                 if self.loadcell is not None:
@@ -488,7 +521,7 @@ class CycleEngine:
         finally:
             failed = self._fail_evt.is_set()
             with self._lock:
-                if self.status in (STATUS_RUNNING, STATUS_CALIBRATING):
+                if self.status in (STATUS_RUNNING, STATUS_CALIBRATING, STATUS_PAUSED):
                     if failed:
                         self.status = STATUS_FAILED
                     else:

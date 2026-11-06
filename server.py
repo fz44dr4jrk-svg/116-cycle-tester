@@ -264,6 +264,12 @@ def make_handler(app):
                 elif path == "/api/stop":
                     app.engine.stop()
                     self._json(200, {"ok": True, "state": app.state()})
+                elif path == "/api/pause":
+                    if payload.get("paused", True):
+                        app.engine.pause()
+                    else:
+                        app.engine.resume()
+                    self._json(200, {"ok": True, "state": app.state()})
                 elif path == "/api/reset":
                     app.engine.reset()
                     self._json(200, {"ok": True, "state": app.state()})
