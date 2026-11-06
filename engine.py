@@ -15,9 +15,11 @@ EQUILIBRIUM_CYCLES = 3
 
 STATUS_IDLE = "idle"
 STATUS_RUNNING = "running"
+STATUS_CALIBRATING = "calibrating"
 STATUS_STOPPED = "stopped"
 STATUS_DONE = "done"
 STATUS_FAILED = "failed"
+WARMUP_CYCLES = 5
 
 
 def cycles_to_index(value):
@@ -148,8 +150,7 @@ class CycleEngine:
                 )
             if not can_move and not has_load:
                 raise RuntimeError("neither the RCC0004 controller nor the load cell is connected")
-            if self.count >= self.config["target"]:
-                self.count = 0
+            self.count = 0
             self.error = None
             self._fail_reason = None
             self._cycle_peak = 0.0
@@ -243,7 +244,7 @@ class CycleEngine:
             self._collapse_count = 0
         if cfg["mode"] != "1":
             check_failure = not (cfg["mode"] == "2b" and not self._goal_reached)
-            check_failure = check_failure and len(self._peak_hist) >= 3
+            check_failure = check_failure and len(self._peak_hist) >= WARMUP_CYCLES
             if cfg["mode"] == "2b":
                 check_failure = check_failure and self._collapse_count >= 2
             baseline = None
@@ -341,6 +342,8 @@ class CycleEngine:
     def _calibrate(self, cfg):
         goal = cfg["load_goal_kg"]
         self._extent = cfg["min_mm"]
+        with self._lock:
+            self.status = STATUS_CALIBRATING
         while not self._stop_evt.is_set() and not self._fail_evt.is_set():
             self._extent = min(STROKE_MM, self._extent + 1.0)
             self._cycle_peak = 0.0
@@ -368,6 +371,9 @@ class CycleEngine:
                 )
             if peak >= goal:
                 self._calibrated = True
+                with self._lock:
+                    if self.status == STATUS_CALIBRATING:
+                        self.status = STATUS_RUNNING
                 if self.recorder is not None:
                     self.recorder.event(
                         f"calibration done: target extent {self._extent:.1f} mm at peak {peak:.3f} kg - cycle counting starts",
@@ -383,6 +389,8 @@ class CycleEngine:
                 )
                 self._failure_type = "part_break"
                 self._fail_evt.set()
+                with self._lock:
+                    self.status = STATUS_RUNNING
                 return
             self.actuator.move_to_mm(cfg["min_mm"], timeout_s=60, cancel_evt=self._stop_evt)
 
@@ -472,7 +480,7 @@ class CycleEngine:
         finally:
             failed = self._fail_evt.is_set()
             with self._lock:
-                if self.status == STATUS_RUNNING:
+                if self.status in (STATUS_RUNNING, STATUS_CALIBRATING):
                     if failed:
                         self.status = STATUS_FAILED
                     else:
