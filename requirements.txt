@@ -1,0 +1,4 @@
+Phidget22
+pyserial
+openpyxl
+pyinstaller

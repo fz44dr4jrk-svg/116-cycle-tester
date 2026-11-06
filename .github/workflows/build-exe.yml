@@ -1,0 +1,37 @@
+name: build-exe
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Build single-file EXE
+        run: python build_exe.py
+      - name: Build folder (onedir) variant - less likely to trip SmartScreen/AV
+        run: |
+          python -m PyInstaller --clean --onedir --noconsole --name L16CycleTester server.py --add-data "static;static" --collect-all Phidget22
+          Compress-Archive -Path dist/L16CycleTester -DestinationPath dist/L16CycleTester-folder.zip -Force
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: L16CycleTester-windows
+          path: |
+            dist/L16CycleTester.exe
+            dist/L16CycleTester-folder.zip
+          retention-days: 30
+      # macOS build is prepared but paused on request: add a macos-latest matrix
+      # entry (artifact L16CycleTester-macos, path dist/L16CycleTester) to re-enable.
+      # To fully remove SmartScreen warnings, code-sign dist/L16CycleTester.exe in CI
+      # with a certificate stored in GitHub secrets (signtool sign ...) - needs a
+      # certificate from a trusted CA.

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>L16 Cycle Tester</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <div class="title-block">
+    <h1>L16 Cycle Tester</h1>
+    <div class="subtitle">Actuonics L16-50-35-6-R &middot; PhidgetAdvancedServo 8-Motor RCC0004_0</div>
+  </div>
+  <div class="header-right">
+    <div class="pill-row">
+      <div id="device-pill" class="pill">connecting&hellip;</div>
+      <button type="button" id="btn-reconnect" class="reconnect-btn" hidden>RECONNECT CONTROLLER</button>
+      <button type="button" id="btn-quit" class="quit-btn">QUIT APP</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="panel work-panel">
+    <div class="status-row">
+      <div id="status-pill" class="pill">IDLE</div>
+      <div id="error-box" class="error" hidden></div>
+    </div>
+
+    <div class="counter">
+      <div class="counter-label">Cycle count</div>
+      <div class="counter-value"><span id="count">0</span><span class="counter-target"> / <span id="target">10,000</span></span></div>
+      <div class="progress"><div id="progress-bar"></div></div>
+    </div>
+
+    <div class="slider-row">
+      <label for="cycles">Number of cycles <output id="cycles-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="cycles" min="0" max="78" step="1" value="0">
+        <input type="number" id="cycles-num" min="10000" max="400000" step="5000" value="10000">
+      </div>
+    </div>
+    <div class="slider-row">
+      <label for="min">Position min <output id="min-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="min" min="0" max="49" step="1" value="0">
+        <input type="number" id="min-num" min="0" max="49" step="1" value="0">
+      </div>
+    </div>
+    <div class="slider-row">
+      <label for="max">Position max <output id="max-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="max" min="1" max="50" step="1" value="50">
+        <input type="number" id="max-num" min="1" max="50" step="1" value="50">
+      </div>
+    </div>
+    <div class="slider-row">
+      <label for="dwell">Interval between cycles <output id="dwell-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="dwell" min="0" max="10" step="0.5" value="2">
+        <input type="number" id="dwell-num" min="0" max="10" step="0.5" value="2">
+      </div>
+    </div>
+    <div class="slider-row">
+      <label for="voltage">Servo voltage <output id="voltage-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="voltage" min="0" max="2" step="1" value="1">
+      </div>
+      <div class="volt-ticks"><span>5.0 V</span><span>6.0 V</span><span>7.4 V</span></div>
+    </div>
+
+    <div class="gauge-block">
+      <div class="gauge-readout">Extent <span id="pos">0</span> mm &middot; range <span id="range-out">0 – 50 mm</span></div>
+      <svg id="gauge" viewBox="0 0 560 100" preserveAspectRatio="xMidYMid meet" aria-label="movement extent gauge"></svg>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="btn-start" class="btn start">START</button>
+      <button type="button" id="btn-pause" class="btn reset" disabled>PAUSE</button>
+      <button type="button" id="btn-stop" class="btn stop" disabled>STOP</button>
+      <button type="button" id="btn-reset" class="btn reset">RESET</button>
+    </div>
+    <div id="settings-hint" class="hint">Settings apply when the tester is stopped.</div>
+  </section>
+
+  <section class="panel load-panel">
+    <h2>Load cell</h2>
+    <div class="load-top">
+      <div id="load-pill" class="pill">connecting&hellip;</div>
+      <button type="button" id="btn-tare" class="reconnect-btn">TARE / NET</button>
+    </div>
+    <div class="load-value"><span id="load-kg">0.000</span><span class="unit"> kg</span><span class="prev-peak">last cycle peak <span id="load-prev-peak">–</span> kg</span></div>
+    <div class="chart-controls">
+      <label>Window
+        <select id="chart-win">
+          <option value="10" selected>last 10 s</option>
+          <option value="60">last 1 min</option>
+          <option value="600">last 10 min</option>
+          <option value="1800">last 30 min</option>
+        </select>
+      </label>
+      <label>Resolution
+        <select id="chart-pts">
+          <option value="100">100 points</option>
+          <option value="300" selected>300 points</option>
+          <option value="600">600 points</option>
+          <option value="1200">max (1200)</option>
+        </select>
+      </label>
+    </div>
+    <canvas id="load-chart" width="600" height="190"></canvas>
+    <div class="slider-row">
+      <label for="mode">Control mode</label>
+      <select id="mode" class="mode-select">
+        <option value="1">1 — actuator &amp; load cell independent</option>
+        <option value="2a">2 — failure stop on load drop vs previous cycle peak</option>
+        <option value="2b">3 — constant load (extend in 1 mm steps to goal)</option>
+        <option value="3">4 — constant path, log load decline</option>
+      </select>
+    </div>
+    <div class="slider-row" id="goal-row" hidden>
+      <label for="goal">Load goal <output id="goal-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="goal" min="0.1" max="6" step="0.2" value="4">
+        <input type="number" id="goal-num" min="0.1" max="6" step="0.2" value="4">
+      </div>
+    </div>
+    <div class="slider-row" id="faildrop-row" hidden>
+      <label for="faildrop">Failure drop vs previous cycle peak <output id="faildrop-out"></output></label>
+      <div class="control-line">
+        <input type="range" id="faildrop" min="10" max="50" step="1" value="30">
+        <input type="number" id="faildrop-num" min="10" max="50" step="1" value="30">
+      </div>
+    </div>
+    <div id="run-file" class="hint"></div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
