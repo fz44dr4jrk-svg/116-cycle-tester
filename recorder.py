@@ -3,7 +3,7 @@ from datetime import datetime
 from pathlib import Path
 
 EXCEL_ROW_CAP = 1048576
-FLUSH_EVERY = 500
+FLUSH_EVERY = 2000
 
 
 class Recorder:

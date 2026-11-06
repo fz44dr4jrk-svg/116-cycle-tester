@@ -298,7 +298,7 @@ class CycleEngine:
             time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
         return not self._stop_evt.is_set() and not self._fail_evt.is_set()
 
-    def _extend_until_load(self, target_load, cfg, cap_mm=None):
+    def _extend_until_load(self, target_load, cfg, cap_mm=None, limiter=True):
         cap = cap_mm if cap_mm is not None else cfg["max_mm"]
         pos = max(cfg["min_mm"], self.actuator.position_mm)
         while (
@@ -310,24 +310,25 @@ class CycleEngine:
             if load is not None:
                 if load > self._cycle_peak:
                     self._cycle_peak = load
-                if load >= target_load:
+                if limiter and load >= target_load:
                     break
                 remaining = target_load - load
                 step = 1.0 if remaining > 0.5 else (0.5 if remaining > 0.2 else 0.1)
             else:
                 step = 1.0
             target = min(cap, pos + step)
+            step_start = self.actuator.position_mm
             self.actuator.set_target_mm(target)
-            last_pos = self.actuator.position_mm
+            last_pos = step_start
             last_change = time.monotonic()
             while not self._stop_evt.is_set() and not self._fail_evt.is_set():
                 load = self._load()
+                pos_now = self.actuator.position_mm
                 if load is not None:
                     if load > self._cycle_peak:
                         self._cycle_peak = load
-                    if load >= target_load:
+                    if limiter and load >= target_load and pos_now > step_start + 0.2:
                         break
-                pos_now = self.actuator.position_mm
                 if abs(pos_now - last_pos) > 0.05:
                     last_pos = pos_now
                     last_change = time.monotonic()
@@ -344,6 +345,12 @@ class CycleEngine:
         self._extent = cfg["min_mm"]
         with self._lock:
             self.status = STATUS_CALIBRATING
+        base_load = self._load()
+        if base_load is not None and base_load > 0.5 * goal and self.recorder is not None:
+            self.recorder.event(
+                f"warning: load at min is {base_load:.3f} kg (goal {goal}) - press TARE first if pre-loaded",
+                0, "", round(base_load, 4),
+            )
         while not self._stop_evt.is_set() and not self._fail_evt.is_set():
             self._extent = min(STROKE_MM, self._extent + 1.0)
             self._cycle_peak = 0.0
@@ -353,7 +360,7 @@ class CycleEngine:
                     self.loadcell.reset_peak()
                 except Exception:
                     pass
-            self._extend_until_load(goal * 1.02, cfg, cap_mm=self._extent)
+            self._extend_until_load(goal * 1.02, cfg, cap_mm=self._extent, limiter=False)
             if self.loadcell is not None:
                 try:
                     mp = self.loadcell.module_peak_kg()
@@ -369,7 +376,7 @@ class CycleEngine:
                     round(self._cycle_maxpos, 3),
                     round(peak, 4),
                 )
-            if peak >= goal:
+            if peak >= goal and (self._cycle_maxpos - cfg["min_mm"]) >= 0.5:
                 self._calibrated = True
                 with self._lock:
                     if self.status == STATUS_CALIBRATING:

@@ -5,8 +5,8 @@ from collections import deque
 
 READ_CMD = b"!001:SYS?\r"
 BAUD = 115200
-POLL_HZ = 100.0
-HIST_MAX = 180000
+POLL_HZ = 50.0
+HIST_MAX = 90000
 WINDOW_MAX_S = 1800.0
 POINTS_MAX = 1200
 
