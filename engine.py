@@ -395,6 +395,7 @@ class CycleEngine:
                 except Exception:
                     pass
             self._extend_until_load(goal * 1.02, cfg, cap_mm=self._extent, limiter=False)
+            self._cycle_maxpos = max(self._cycle_maxpos, self.actuator.position_mm)
             if self.loadcell is not None:
                 try:
                     mp = self.loadcell.module_peak_kg()
@@ -491,6 +492,8 @@ class CycleEngine:
                         if self._stop_evt.is_set() or self._fail_evt.is_set():
                             break
                         raise RuntimeError("actuator did not reach min extent in time")
+                if can_move and not self._wait_pause():
+                    break
                 with self._lock:
                     self.count += 1
                     current = self.count
