@@ -291,6 +291,8 @@ class CycleEngine:
                 step = 1.0
             target = min(cap, pos + step)
             self.actuator.set_target_mm(target)
+            last_pos = self.actuator.position_mm
+            last_change = time.monotonic()
             while not self._stop_evt.is_set() and not self._fail_evt.is_set():
                 load = self._load()
                 if load is not None:
@@ -298,7 +300,13 @@ class CycleEngine:
                         self._cycle_peak = load
                     if load >= target_load:
                         break
-                if self.actuator.position_mm >= target - 0.05:
+                pos_now = self.actuator.position_mm
+                if abs(pos_now - last_pos) > 0.05:
+                    last_pos = pos_now
+                    last_change = time.monotonic()
+                if time.monotonic() - last_change > 2.0:
+                    break
+                if pos_now >= target - 0.05:
                     break
                 time.sleep(0.01)
             pos = self.actuator.position_mm
@@ -372,9 +380,19 @@ class CycleEngine:
                     goal = cfg["load_goal_kg"]
                     peak = self._cycle_peak
                     if peak < goal:
-                        self._extent = min(STROKE_MM, self._extent + 1.0)
-                        note = f"cycle peak {peak:.3f} kg below goal {goal}: extent -> {self._extent:.1f} mm"
-                        if self._extent >= STROKE_MM and not self._fail_evt.is_set():
+                        if (self._cycle_maxpos - cfg["min_mm"]) < 0.5 and not self._fail_evt.is_set():
+                            self._fail_reason = (
+                                f"actuator cannot extend further (max pos {self._cycle_maxpos:.1f} mm) "
+                                f"but cycle peak {peak:.3f} kg below goal {goal} - actuator may be dead "
+                                f"or the part is blocking"
+                            )
+                            self._failure_type = "actuator_stuck"
+                            self._fail_evt.set()
+                            note = "actuator stalled below goal"
+                        else:
+                            self._extent = min(STROKE_MM, self._extent + 1.0)
+                            note = f"cycle peak {peak:.3f} kg below goal {goal}: extent -> {self._extent:.1f} mm"
+                        if self._extent >= STROKE_MM and not self._fail_evt.is_set() and (self._cycle_maxpos - cfg["min_mm"]) >= 0.5:
                             self._fail_reason = (
                                 f"actuator reached full stroke ({STROKE_MM} mm) but cycle peak "
                                 f"{peak:.3f} kg still below goal {goal} - no resistance: part "
