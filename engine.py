@@ -359,7 +359,7 @@ class CycleEngine:
                     if cfg["mode"] == "2b":
                         if self._extent is None:
                             self._extent = cfg["min_mm"] + 1.0
-                        limiter = cfg["load_goal_kg"] * 1.15
+                        limiter = cfg["load_goal_kg"] * 1.02
                         self._extend_until_load(limiter, cfg, cap_mm=self._extent)
                     else:
                         if not self.actuator.move_to_mm(cfg["max_mm"], timeout_s=120, cancel_evt=self._stop_evt):
@@ -429,9 +429,12 @@ class CycleEngine:
                             self._fail_evt.set()
                             note = "actuator stalled below goal"
                         else:
-                            delta = min(1.0, max(0.1, (goal - peak) * 3.0))
+                            if peak >= goal * 0.7:
+                                delta = min(0.3, max(0.05, (goal - peak) * 5.0))
+                            else:
+                                delta = min(1.0, max(0.1, (goal - peak) * 3.0))
                             self._extent = min(STROKE_MM, self._extent + delta)
-                            note = f"cycle peak {peak:.3f} kg below goal {goal}: extent +{delta:.1f} -> {self._extent:.1f} mm"
+                            note = f"cycle peak {peak:.3f} kg below goal {goal}: extent +{delta:.2f} -> {self._extent:.1f} mm"
                         if self._extent >= STROKE_MM and not self._fail_evt.is_set() and (self._cycle_maxpos - cfg["min_mm"]) >= 0.5:
                             self._fail_reason = (
                                 f"actuator reached full stroke ({STROKE_MM} mm) but cycle peak "
@@ -441,7 +444,7 @@ class CycleEngine:
                             self._failure_type = "part_break"
                             self._fail_evt.set()
                     elif peak > goal * 1.05:
-                        delta = min(0.2, max(0.05, (peak - goal) * 2.0))
+                        delta = min(0.3, max(0.05, (peak - goal) * 5.0))
                         self._extent = max(cfg["min_mm"] + 1.0, self._extent - delta)
                         note = f"cycle peak {peak:.3f} kg above goal: extent -{delta:.2f} -> {self._extent:.1f} mm"
                     else:
