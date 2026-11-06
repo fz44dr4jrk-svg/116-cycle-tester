@@ -1,5 +1,6 @@
 import threading
 import time
+from collections import deque
 
 STROKE_MM = 50.0
 DWELL_MIN_S, DWELL_MAX_S = 0.0, 10.0
@@ -59,6 +60,7 @@ class CycleEngine:
         self._failure_type = None
         self._cycle_maxpos = 0.0
         self._prev_maxpos = None
+        self._peak_hist = deque(maxlen=5)
 
     def snapshot(self):
         with self._lock:
@@ -155,6 +157,7 @@ class CycleEngine:
             self._failure_type = None
             self._cycle_maxpos = 0.0
             self._prev_maxpos = None
+            self._peak_hist.clear()
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -223,30 +226,36 @@ class CycleEngine:
             self._goal_reached = True
         if cfg["mode"] != "1":
             check_failure = not (cfg["mode"] == "2b" and not self._goal_reached)
+            check_failure = check_failure and len(self._peak_hist) >= 3
+            baseline = None
+            if self._peak_hist:
+                recent = list(self._peak_hist)[-3:]
+                baseline = sum(recent) / len(recent)
             drop = cfg["fail_drop_pct"] / 100.0
             if (
                 check_failure
-                and prev is not None
-                and prev > PEAK_EPS_KG
-                and peak < (1.0 - drop) * prev
+                and baseline is not None
+                and baseline > PEAK_EPS_KG
+                and peak < (1.0 - drop) * baseline
             ):
                 actuator_moved = (self._cycle_maxpos - cfg["min_mm"]) > 1.0
                 if actuator_moved:
                     self._failure_type = "part_break"
                     self._fail_reason = (
-                        f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the previous "
-                        f"cycle peak while the actuator kept moving: {peak:.3f} kg vs {prev:.3f} kg "
-                        f"(part break)"
+                        f"cycle peak load dropped {cfg['fail_drop_pct']:.0f}% below the expected "
+                        f"peak (avg of last cycles) while the actuator kept moving: {peak:.3f} kg "
+                        f"vs ~{baseline:.3f} kg (part break)"
                     )
                 else:
                     self._failure_type = "actuator_stuck"
                     self._fail_reason = (
-                        f"load dropped {peak:.3f} kg vs {prev:.3f} kg and the actuator stalled "
+                        f"load dropped {peak:.3f} kg vs ~{baseline:.3f} kg and the actuator stalled "
                         f"(max pos {self._cycle_maxpos:.1f} mm vs {self._prev_maxpos:.1f} mm) "
                         f"- actuator may be dead"
                     )
                 self._fail_evt.set()
-                self._fail_prev_peak = prev
+                self._fail_prev_peak = baseline
+        self._peak_hist.append(peak)
             if cfg["mode"] in ("2a", "3") and prev is not None and prev > 0.2:
                 if abs(peak - prev) <= 0.01 * prev:
                     self._flat_count += 1
