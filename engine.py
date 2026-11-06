@@ -398,7 +398,11 @@ class CycleEngine:
                     goal = cfg["load_goal_kg"]
                     peak = self._cycle_peak
                     if peak < goal:
-                        if (self._cycle_maxpos - cfg["min_mm"]) < 0.5 and not self._fail_evt.is_set():
+                        if (
+                            (self._cycle_maxpos - cfg["min_mm"]) < 0.5
+                            and peak < goal * 0.5
+                            and not self._fail_evt.is_set()
+                        ):
                             self._fail_reason = (
                                 f"actuator cannot extend further (max pos {self._cycle_maxpos:.1f} mm) "
                                 f"but cycle peak {peak:.3f} kg below goal {goal} - actuator may be dead "
