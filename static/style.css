@@ -117,8 +117,6 @@ main {
 
 .load-top { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
 
-.load-peak { margin-left: auto; font-size: 20px; font-weight: 800; color: var(--warn); font-variant-numeric: tabular-nums; }
-
 .chart-controls { display: flex; gap: 16px; align-items: center; margin-bottom: 6px; }
 .chart-controls label { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; font-weight: 600; }
 .chart-controls select {

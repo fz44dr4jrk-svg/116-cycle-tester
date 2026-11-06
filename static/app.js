@@ -374,7 +374,6 @@ function render() {
   $("max-num").disabled = running || maxLocked;
 
   const load = s.load;
-  $("load-peak").textContent = (load.peak_kg ?? 0).toFixed(3);
   const loadPill = $("load-pill");
   if (s.demo) {
     loadPill.textContent = "DEMO - simulated load cell";

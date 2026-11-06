@@ -268,9 +268,6 @@ class CycleEngine:
                     self._failure_type = "actuator_stuck"
                     self._fail_evt.set()
                     self._fail_prev_peak = prev
-        self._peak_hist.append(peak)
-        self._prev_peak = peak
-        self._prev_maxpos = self._cycle_maxpos
 
     def _sleep(self, seconds):
         deadline = time.monotonic() + seconds
@@ -375,12 +372,23 @@ class CycleEngine:
                     self.count += 1
                     current = self.count
                     target = self.config["target"]
+                if can_move and self.loadcell is not None:
+                    try:
+                        mp = self.loadcell.module_peak_kg()
+                        if mp is not None and mp > self._cycle_peak:
+                            self._cycle_peak = mp
+                    except Exception:
+                        pass
+                peak = self._cycle_peak
+                self._peak_hist.append(peak)
+                self._prev_peak = peak
+                self._prev_maxpos = self._cycle_maxpos
                 if self.recorder is not None:
                     self.recorder.event(
                         f"cycle {current} peak",
                         current,
                         round(self.actuator.position_mm, 3) if can_move else "",
-                        round(self._cycle_peak, 4),
+                        round(peak, 4),
                     )
                 if current >= target:
                     done = True
