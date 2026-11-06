@@ -62,6 +62,7 @@ class CycleEngine:
         self._prev_maxpos = None
         self._peak_hist = deque(maxlen=5)
         self._collapse_count = 0
+        self._on_goal_count = 0
 
     def snapshot(self):
         with self._lock:
@@ -160,6 +161,7 @@ class CycleEngine:
             self._prev_maxpos = None
             self._peak_hist.clear()
             self._collapse_count = 0
+            self._on_goal_count = 0
             self._fail_evt.clear()
             if self.loadcell is not None:
                 try:
@@ -224,8 +226,13 @@ class CycleEngine:
         cfg = self._cfg()
         peak = self._cycle_peak
         prev = self._prev_peak
-        if cfg["mode"] == "2b" and peak >= cfg["load_goal_kg"]:
-            self._goal_reached = True
+        if cfg["mode"] == "2b":
+            if abs(peak - cfg["load_goal_kg"]) <= 0.1 * cfg["load_goal_kg"]:
+                self._on_goal_count += 1
+            else:
+                self._on_goal_count = 0
+            if self._on_goal_count >= 3:
+                self._goal_reached = True
         if cfg["mode"] == "2b" and peak < cfg["load_goal_kg"] * 0.8:
             self._collapse_count += 1
         else:
