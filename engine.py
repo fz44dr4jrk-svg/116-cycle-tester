@@ -54,6 +54,7 @@ class CycleEngine:
         self.count = 0
         self.status = STATUS_IDLE
         self.error = None
+        self.on_event = None
         self._cycle_peak = 0.0
         self._prev_peak = None
         self._fail_prev_peak = None
@@ -492,6 +493,13 @@ class CycleEngine:
                         self.status = STATUS_FAILED
                     else:
                         self.status = STATUS_DONE if done else STATUS_STOPPED
+                err = self.error
+                reason = self._fail_reason
+            if (failed or err) and self.on_event is not None:
+                try:
+                    self.on_event(f"run ended: status={'failed' if failed else 'stopped/done'} error={err} reason={reason}")
+                except Exception:
+                    pass
             self._stop_evt.set()
             if self._monitor_thread is not None:
                 self._monitor_thread.join(timeout=5)

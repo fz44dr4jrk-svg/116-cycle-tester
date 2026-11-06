@@ -95,6 +95,7 @@ class App:
         self.loadcell = loadcell
         self.demo = demo
         self.engine = CycleEngine(actuator, loadcell)
+        self.engine.on_event = log
         self.recorder = None
         self._reconnect_lock = threading.Lock()
         self.server = None
