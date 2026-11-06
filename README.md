@@ -102,6 +102,26 @@ MAX / the Phidget Control Panel can use it again.
 To run from source instead: `pip install -r requirements.txt`, then `run.bat`
 (hardware) or `run_demo.bat` (simulated actuator).
 
+## Windows SmartScreen / antivirus warning ("Windows protected your PC")
+
+The EXE is not code-signed, so Windows 10 SmartScreen blocks it on first run —
+this is a false positive common to all unsigned PyInstaller builds. Options, in
+order of preference:
+
+1. **Run anyway**: on the warning dialog click *More info → Run anyway*.
+2. **Unblock the file** (removes the mark-of-the-web): in PowerShell on the
+   tablet run `Unblock-File -Path "D:\...\L16CycleTester.exe"` (adjust path).
+3. **Use the folder build**: download `L16CycleTester-folder.zip` from the same
+   Actions artifact, unzip it, and run `L16CycleTester\L16CycleTester.exe` —
+   onedir builds are unpacked already and are flagged far less often.
+4. **Run from source** (no unsigned binary at all): install Python 3.12 from
+   python.org (signed installer), copy the repo to the tablet, `pip install -r
+   requirements.txt`, then `run.bat`.
+5. **Proper fix**: code-sign the EXE in CI with a certificate from a trusted CA
+   (stored as a GitHub secret, `signtool sign` step — see the note in
+   `.github/workflows/build-exe.yml`). Note a brand-new certificate still warns
+   until it builds SmartScreen reputation.
+
 ## macOS build (prepared, currently paused)
 
 The app is portable to macOS and the build supports it (CI matrix entry ready in
